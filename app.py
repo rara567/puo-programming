@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from shapely.geometry import Polygon, Point, LineString
 import json
-import os  # Tambah ini untuk kesan path fail
+import os
 
 # ================== FUNGSI TUKAR DMS ==================
 def format_dms(decimal_degree):
@@ -35,22 +35,19 @@ def check_password():
 
 # ================== MAIN APP ==================
 if check_password():
-    # CONFIG mesti di paling atas selepas login
+    # Set config halaman
     st.set_page_config(page_title="Visualisasi Poligon Pro", layout="wide")
 
     # --- PENYELESAIAN LOGO ---
-    # Mendapatkan path folder semasa fail .py ini berada
     current_dir = os.path.dirname(os.path.abspath(__file__))
     logo_path = os.path.join(current_dir, "puo.png")
 
-    # Susunan Logo dan Tajuk
     col_logo, col_text = st.columns([1, 8])
 
     with col_logo:
         if os.path.exists(logo_path):
             st.image(logo_path, width=120)
         else:
-            # Jika masih tidak jumpa, cuba cari secara direct (fallback)
             try:
                 st.image("puo.png", width=120)
             except:
@@ -73,6 +70,10 @@ if check_password():
     st.sidebar.subheader("🖋️ Gaya Label")
     label_size_stn = st.sidebar.slider("Saiz Label Stesen", 6, 16, 10)
     label_size_data = st.sidebar.slider("Saiz Bearing/Jarak", 5, 12, 7)
+    
+    # FEATURE BARU: Slider untuk ubah saiz tulisan "LUAS"
+    label_size_luas = st.sidebar.slider("Saiz Tulisan LUAS", 8, 30, 12) 
+    
     dist_offset = st.sidebar.slider("Jarak Label Stesen ke Luar", 0.5, 5.0, 1.5)
 
     st.sidebar.markdown("---")
@@ -83,7 +84,6 @@ if check_password():
         if uploaded_file is not None:
             df = pd.read_csv(uploaded_file)
         else:
-            # Pastikan fail "data ukur.csv" juga ada dalam GitHub/folder anda
             data_path = os.path.join(current_dir, "data ukur.csv")
             if os.path.exists(data_path):
                 df = pd.read_csv(data_path)
@@ -91,6 +91,7 @@ if check_password():
                 st.info("Sila upload fail CSV untuk bermula.")
                 st.stop()
 
+        # Generate Geometri
         coords = list(zip(df['E'], df['N']))
         poly_geom = Polygon(coords)
         line_geom = LineString(coords + [coords[0]])
@@ -112,7 +113,7 @@ if check_password():
         col3.metric("Bilangan Stesen", len(df))
         col4.metric("Status", "Tutup" if poly_geom.is_valid else "Ralat")
 
-        # ================== PLOT ==================
+        # ================== PLOT (MATPLOTLIB) ==================
         if plot_theme == "Dark Mode":
             bg_color, grid_color, text_color, line_c = "#121212", "#555555", "white", "cyan"
         elif plot_theme == "Blueprint":
@@ -124,9 +125,11 @@ if check_password():
         fig.patch.set_facecolor(bg_color)
         ax.set_facecolor(bg_color)
 
+        # Plot Garisan Sempadan
         ax.plot(*(line_geom.xy), linewidth=2, color=line_c, zorder=4)
         ax.fill(*(poly_geom.exterior.xy), color='green', alpha=0.1, zorder=1)
 
+        # Grid Latar Belakang
         if show_bg_grid:
             min_e, min_n, max_e, max_n = poly_geom.bounds
             ax.set_xlim(np.floor(min_e/10)*10 - 20, np.ceil(max_e/10)*10 + 20)
@@ -137,30 +140,42 @@ if check_password():
         else:
             ax.axis('off')
 
-        ax.text(centroid.x, centroid.y, f"LUAS\n{area:.2f} m²", fontsize=11, fontweight='bold', color='darkgreen', ha='center',
-                bbox=dict(boxstyle='round,pad=0.3', fc='white', alpha=0.9, ec='green'), zorder=10)
+        # PAPARAN TULISAN LUAS (DENGAN SAIZ DINAMIK)
+        ax.text(centroid.x, centroid.y, f"LUAS\n{area:.2f} m²", 
+                fontsize=label_size_luas, # <--- Menggunakan saiz dari slider
+                fontweight='bold', 
+                color='darkgreen', 
+                ha='center',
+                bbox=dict(boxstyle='round,pad=0.3', fc='white', alpha=0.9, ec='green'), 
+                zorder=10)
 
+        # Plot Label Bearing, Jarak dan No Stesen
         for i in range(len(df)):
             p1, p2 = df.iloc[i], df.iloc[(i + 1) % len(df)]
             dE, dN = p2['E'] - p1['E'], p2['N'] - p1['N']
             dist, bear = np.sqrt(dE**2 + dN**2), (np.degrees(np.arctan2(dE, dN)) + 360) % 360
+            
+            # Kira sudut pusingan teks supaya selari dengan garisan
             txt_angle = np.degrees(np.arctan2(dN, dE))
             if txt_angle > 90: txt_angle -= 180
             if txt_angle < -90: txt_angle += 180
             
+            # Label Bearing & Jarak
             ax.text((p1['E']+p2['E'])/2, (p1['N']+p2['N'])/2, f"{format_dms(bear)}\n{dist:.2f}m", 
                     fontsize=label_size_data, color='brown', fontweight='bold', ha='center', rotation=txt_angle,
                     bbox=dict(boxstyle='round,pad=0.1', fc=bg_color, alpha=0.4, ec='none'), zorder=6)
 
+            # Label Nombor Stesen (Offset ke luar)
             ve, vn = p1['E'] - centroid.x, p1['N'] - centroid.y
             mag = np.sqrt(ve**2 + vn**2)
             ax.text(p1['E'] + (ve/mag)*dist_offset, p1['N'] + (vn/mag)*dist_offset, 
                     str(int(p1['STN'])), fontsize=label_size_stn, fontweight='bold', color='blue', ha='center', zorder=7)
             
+            # Titik Stesen (Point)
             ax.scatter(p1['E'], p1['N'], color='red', s=50, edgecolors='black', zorder=8)
 
         ax.set_aspect("equal", adjustable="box")
         st.pyplot(fig)
 
     except Exception as e:
-        st.error(f"❌ Sila pastikan fail CSV diupload dengan format E, N, STN yang betul. (Ralat: {e})")
+        st.error(f"❌ Ralat: Sila pastikan format CSV betul (E, N, STN). Ralat teknikal: {e}")
