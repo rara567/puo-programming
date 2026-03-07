@@ -3,12 +3,23 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from shapely.geometry import Polygon, Point, LineString
-import json
-import os
 import folium
 from streamlit_folium import folium_static
+from pyproj import Transformer # Tambah library ini
 
-# ================== FUNGSI TUKAR DMS (Untuk Pelan) ==================
+# ================== FUNGSI PENUKARAN KOORDINAT ==================
+# Contoh: Menukar dari Perak Cassini (GDM2000) ke WGS84
+# EPSG 3384 adalah untuk Perak Grid (GDM2000)
+def transform_coords(df, from_epsg=3384):
+    # 'always_xy=True' memastikan input E(X), N(Y) diproses dengan betul
+    transformer = Transformer.from_crs(f"EPSG:{from_epsg}", "EPSG:4326", always_xy=True)
+    # Tukar E, N kepada Lon, Lat
+    lon, lat = transformer.transform(df['E'].values, df['N'].values)
+    df['lat'] = lat
+    df['lon'] = lon
+    return df
+
+# ================== FUNGSI TUKAR DMS ==================
 def format_dms(decimal_degree):
     d = int(decimal_degree)
     m = int((decimal_degree - d) * 60)
@@ -35,13 +46,16 @@ def check_password():
 if check_password():
     st.set_page_config(page_title="Visualisasi Poligon Pro + Satelit", layout="wide")
 
-    # --- HEADER ---
     st.title("POLITEKNIK UNGKU OMAR")
     st.caption("Sistem Visualisasi Lot Tanah & Satelit Interaktif")
 
     # ================== SIDEBAR ==================
     st.sidebar.header("⚙️ Tetapan Data")
     uploaded_file = st.sidebar.file_uploader("Upload fail CSV (E, N, STN)", type=["csv"])
+    
+    # Tambah pilihan sistem koordinat asal
+    crs_option = st.sidebar.selectbox("Sistem Koordinat Asal (Input):", 
+                                     ["Perak Cassini (Meter)", "RSO Malaysia (Meter)", "WGS84 (Lat/Lon)"])
     
     view_mode = st.sidebar.radio("Pilih Mod Paparan:", ["Peta Satelit Interaktif", "Pelan Teknikal (Matplotlib)"])
 
@@ -58,12 +72,22 @@ if check_password():
             st.info("Sila upload fail CSV untuk memaparkan peta.")
             st.stop()
 
-        # Check column names
         if not all(col in df.columns for col in ['E', 'N', 'STN']):
             st.error("Ralat: Fail CSV mesti mempunyai kolum 'E', 'N', dan 'STN'")
             st.stop()
 
-        # Geometri Dasar
+        # Tukar koordinat khusus untuk paparan Satelit
+        df_map = df.copy()
+        if crs_option == "Perak Cassini (Meter)":
+            df_map = transform_coords(df_map, from_epsg=3384)
+        elif crs_option == "RSO Malaysia (Meter)":
+            df_map = transform_coords(df_map, from_epsg=3168)
+        else:
+            # Jika asal memang Lat/Lon, gunakan terus
+            df_map['lat'] = df_map['N']
+            df_map['lon'] = df_map['E']
+
+        # Geometri Dasar (Guna unit asal Meter untuk kira Luas yang tepat)
         coords = list(zip(df['E'], df['N']))
         poly_geom = Polygon(coords)
         line_geom = LineString(coords + [coords[0]])
@@ -80,59 +104,43 @@ if check_password():
         if view_mode == "Peta Satelit Interaktif":
             st.markdown("### 🛰️ Paparan Google Satellite")
             
-            # Center peta
-            center_lat, center_lon = df['N'].mean(), df['E'].mean()
+            # Center peta guna koordinat yang dah ditukar (Lat/Lon)
+            center_lat, center_lon = df_map['lat'].mean(), df_map['lon'].mean()
             
-            # Inisialisasi Peta (Base: OpenStreetMap)
             m = folium.Map(location=[center_lat, center_lon], zoom_start=19)
 
-            # TAMBAH LAYER SATELIT (Betulkan cara panggil tile)
-            tile_url = 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'
-            folium.TileLayer(
-                tiles=tile_url,
-                attr='Google',
-                name='Google Satellite',
-                overlay=False,
-                control=True
-            ).add_to(m)
-            
-            # Tambah layer jalan (Optional)
+            # Layer Satelit
+            google_sat = 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'
+            folium.TileLayer(tiles=google_sat, attr='Google', name='Google Satellite').add_to(m)
             folium.TileLayer('openstreetmap', name='Peta Jalan').add_to(m)
 
-            # Lukis Poligon
-            folium_coords = [[row['N'], row['E']] for _, row in df.iterrows()]
+            # Lukis Poligon (Guna Lat/Lon)
+            folium_coords = df_map[['lat', 'lon']].values.tolist()
             folium.Polygon(
                 locations=folium_coords,
-                color="yellow",
-                weight=3,
-                fill=True,
-                fill_color="green",
-                fill_opacity=0.3,
+                color="yellow", weight=3, fill=True, fill_color="green", fill_opacity=0.3,
                 popup=f"Luas: {area:.2f} m²"
             ).add_to(m)
 
-            # Tambah Marker Stesen
-            for _, row in df.iterrows():
+            # Marker Stesen
+            for _, row in df_map.iterrows():
                 folium.CircleMarker(
-                    location=[row['N'], row['E']],
-                    radius=5,
-                    color="red",
-                    fill=True,
-                    fill_opacity=1,
+                    location=[row['lat'], row['lon']],
+                    radius=4, color="red", fill=True,
                     tooltip=f"STN: {int(row['STN'])}"
                 ).add_to(m)
 
-            # Tambah Layer Control supaya butang boleh ditekan
-            folium.LayerControl(collapsed=False).add_to(m)
-
-            # Paparkan Peta
+            # PENTING: Fit bounds supaya peta zoom ke lokasi lot secara automatik
+            m.fit_bounds(folium_coords)
+            
+            folium.LayerControl().add_to(m)
             folium_static(m, width=1100, height=600)
 
-        # ================== MOD 2: MATPLOTLIB ==================
+        # ================== MOD 2: MATPLOTLIB (Pelan Teknikal) ==================
         else:
             st.markdown("### 📐 Pelan Teknikal")
             fig, ax = plt.subplots(figsize=(10, 8))
-            ax.plot(*(line_geom.xy), linewidth=2, color='black', zorder=4)
+            ax.plot(*(line_geom.xy), linewidth=2, color='black')
             ax.fill(*(poly_geom.exterior.xy), color='green', alpha=0.1)
             ax.grid(True, linestyle='--', alpha=0.6)
             
@@ -149,4 +157,4 @@ if check_password():
 
     except Exception as e:
         st.error(f"⚠️ Masalah teknikal: {e}")
-        st.info("Tips: Jika peta kosong, pastikan koordinat anda adalah dalam format Decimal Degrees (cth: 4.38, 101.08) bukan sistem Cassini/RSO.")
+        st.info("Nota: Pastikan anda memilih 'Sistem Koordinat Asal' yang betul di sidebar.")
