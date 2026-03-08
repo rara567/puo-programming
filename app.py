@@ -1,167 +1,160 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import numpy as np
-from shapely.geometry import Polygon, LineString
 import folium
 from streamlit_folium import folium_static
 from pyproj import Transformer
+from shapely.geometry import Polygon
 
-# ================== FUNGSI PENUKARAN KOORDINAT ==================
+# ================== KONFIGURASI HALAMAN ==================
+st.set_page_config(page_title="Sistem Survey Lot - PUO", layout="wide")
+
+# Custom CSS untuk menyamakan gaya dengan gambar
+st.markdown("""
+    <style>
+    .main {
+        background-color: #0e1117;
+    }
+    .stButton>button {
+        width: 100%;
+        border-radius: 5px;
+        height: 3em;
+        background-color: #262730;
+        color: white;
+        border: 1px solid #4B4B4B;
+    }
+    .stButton>button:hover {
+        border-color: #ff4b4b;
+        color: #ff4b4b;
+    }
+    .title-container {
+        background-color: white;
+        padding: 20px;
+        border-radius: 10px;
+        border-left: 10px solid #2E86C1;
+        margin-bottom: 20px;
+    }
+    .title-text {
+        color: #1B1B1B;
+        font-size: 45px;
+        font-weight: bold;
+        margin-bottom: 0;
+    }
+    .subtitle-text {
+        color: #5D6D7E;
+        font-size: 18px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# ================== LOGIK SESSION STATE ==================
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+# ================== FUNGSI PEMPROSESAN ==================
 def transform_coords(df, from_epsg):
-    """Menukar koordinat Meter (Cassini/RSO) ke WGS84 (Lat/Lon)"""
     try:
+        # Menukar koordinat ke WGS84 untuk paparan peta
         transformer = Transformer.from_crs(f"EPSG:{from_epsg}", "EPSG:4326", always_xy=True)
         lon, lat = transformer.transform(df['E'].values, df['N'].values)
         df['lat'] = lat
         df['lon'] = lon
         return df
     except Exception as e:
-        st.error(f"Ralat transformasi koordinat: {e}")
-        return df
+        st.error(f"Ralat EPSG: {e}")
+        return None
 
-# ================== FUNGSI TUKAR DMS ==================
-def format_dms(decimal_degree):
-    d = int(decimal_degree)
-    m = int((decimal_degree - d) * 60)
-    s = round((((decimal_degree - d) * 60) - m) * 60, 0)
-    return f"{d}°{abs(m):02d}'{abs(int(s)):02d}\""
-
-# ================== FUNGSI LOGIN ==================
-def check_password():
-    if "password_correct" not in st.session_state:
-        st.session_state["password_correct"] = False
-    if st.session_state["password_correct"]:
-        return True
-    
-    st.title("🔐 Akses Sistem Visualisasi Lot")
-    password = st.text_input("Sila masukkan Kata Laluan", type="password")
-    if st.button("Log Masuk"):
-        if password == "admin123":
-            st.session_state["password_correct"] = True
-            st.rerun()
-        else:
-            st.error("😕 Kata laluan salah.")
-    return False
-
-# ================== MAIN APP ==================
-if check_password():
-    st.set_page_config(page_title="PUO Geomatics - Visualisasi Lot", layout="wide")
-
-    st.title("📌 POLITEKNIK UNGKU OMAR")
-    st.caption("Sistem Visualisasi Lot Tanah & Satelit Interaktif")
-
+# ================== HALAMAN LOGIN ==================
+if not st.session_state.logged_in:
+    cols = st.columns([1, 2, 1])
+    with cols[1]:
+        st.markdown("### 🔐 Akses Sistem Visualisasi Lot")
+        user_id = st.text_input("ID Pengguna")
+        password = st.text_input("Kata Laluan", type="password")
+        
+        if st.button("Log Masuk"):
+            if user_id == "1" and password == "admin123":
+                st.session_state.logged_in = True
+                st.success("Berjaya Log Masuk!")
+                st.rerun()
+            else:
+                st.error("ID atau Kata Laluan Salah")
+else:
     # ================== SIDEBAR ==================
-    st.sidebar.header("⚙️ Tetapan Data")
-    uploaded_file = st.sidebar.file_uploader("Upload fail CSV (E, N, STN)", type=["csv"])
-    
-    crs_option = st.sidebar.selectbox(
-        "Sistem Koordinat Asal (Input):", 
-        ["Perak Cassini (Meter)", "RSO Malaysia (Meter)", "WGS84 (Lat/Lon)"]
-    )
-    
-    view_mode = st.sidebar.radio("Pilih Mod Paparan:", ["Peta Satelit Interaktif", "Pelan Teknikal (Matplotlib)"])
+    with st.sidebar:
+        st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/0/01/Logo_Politeknik_Malaysia.png/800px-Logo_Politeknik_Malaysia.png", width=150)
+        st.markdown("---")
+        if st.button("🔑 Tukar Kata Laluan"):
+            st.info("Ciri ini akan datang.")
+        
+        if st.button("🚪 Log Keluar"):
+            st.session_state.logged_in = False
+            st.rerun()
 
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("🖋️ Gaya Label")
-    label_size_stn = st.sidebar.slider("Saiz Label Stesen", 6, 20, 10)
-    label_size_luas = st.sidebar.slider("Saiz Tulisan LUAS", 8, 40, 15)
+    # ================== KANDUNGAN UTAMA ==================
+    # Header mengikut gambar
+    st.markdown("""
+        <div class="title-container">
+            <p class="title-text">SISTEM SURVEY LOT</p>
+            <p class="subtitle-text">Politeknik Ungku Omar | Jabatan Kejuruteraan Awam</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Input Section
+    col1, col2 = st.columns([1, 2])
     
-    # ================== PEMPROSESAN DATA ==================
+    with col1:
+        epsg_code = st.text_input("🔵 Kod EPSG:", value="4390", help="Contoh: 3384 (Cassini Perak), 4326 (WGS84)")
+        
+    with col2:
+        uploaded_file = st.file_uploader("📂 Muat naik fail CSV (STN, E, N)", type=["csv"])
+
+    # Processing Data
     if uploaded_file is not None:
         try:
             df = pd.read_csv(uploaded_file)
             df.columns = [c.strip().upper() for c in df.columns]
+            
+            if all(x in df.columns for x in ['E', 'N', 'STN']):
+                # Transformasi
+                df_mapped = transform_coords(df.copy(), epsg_code)
+                
+                if df_mapped is not None:
+                    # Kira Luas
+                    coords = list(zip(df['E'], df['N']))
+                    poly = Polygon(coords)
+                    area = poly.area
+                    
+                    # Paparan Metrik
+                    m1, m2 = st.columns(2)
+                    m1.metric("Luas (m²)", f"{area:.2f}")
+                    m2.metric("Bilangan Titik", len(df))
 
-            if not all(col in df.columns for col in ['E', 'N', 'STN']):
-                st.error("Ralat: Fail CSV mesti mempunyai kolum 'E', 'N', dan 'STN'")
-                st.stop()
+                    # Peta
+                    st.markdown("### 🗺️ Paparan Lokasi")
+                    center_lat = df_mapped['lat'].mean()
+                    center_lon = df_mapped['lon'].mean()
+                    
+                    m = folium.Map(location=[center_lat, center_lon], zoom_start=18)
+                    
+                    # Layer Satelit
+                    google_sat = 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'
+                    folium.TileLayer(tiles=google_sat, attr='Google', name='Satelit').add_to(m)
+                    
+                    # Lukis Sempadan
+                    locations = df_mapped[['lat', 'lon']].values.tolist()
+                    folium.Polygon(locations, color="yellow", weight=5, fill=True, fill_opacity=0.2).add_to(m)
+                    
+                    # Titik Stesen
+                    for _, row in df_mapped.iterrows():
+                        folium.CircleMarker(
+                            [row['lat'], row['lon']], 
+                            radius=3, color="red", popup=f"STN: {row['STN']}"
+                        ).add_to(m)
 
-            # 1. Transformasi Koordinat khusus untuk Folium
-            df_map = df.copy()
-            if crs_option == "Perak Cassini (Meter)":
-                df_map = transform_coords(df_map, 3384)
-            elif crs_option == "RSO Malaysia (Meter)":
-                df_map = transform_coords(df_map, 3168)
+                    folium_static(m, width=1000)
             else:
-                df_map['lat'], df_map['lon'] = df_map['N'], df_map['E']
-
-            # 2. Geometri Dasar (Guna unit asal Meter untuk pengiraan luas)
-            coords_orig = list(zip(df['E'], df['N']))
-            poly_geom = Polygon(coords_orig)
-            line_geom = LineString(coords_orig + [coords_orig[0]])
-            centroid = poly_geom.centroid
-            area_m2 = poly_geom.area
-
-            # Info Ringkas
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Luas (m²)", f"{area_m2:.2f}")
-            m2.metric("Luas (Ekar)", f"{area_m2/4046.856:.4f}")
-            m3.metric("Bilangan Stesen", len(df))
-
-            # ================== MOD 1: PETA SATELIT (FOLIUM) ==================
-            if view_mode == "Peta Satelit Interaktif":
-                st.markdown("### 🛰️ Paparan Google Satellite Hybrid")
-                
-                center_lat, center_lon = df_map['lat'].mean(), df_map['lon'].mean()
-                
-                # Cipta peta dengan OpenStreetMap sebagai fallback (elak gelap)
-                m = folium.Map(location=[center_lat, center_lon], zoom_start=19)
-
-                # Tambah Layer Google Satellite Hybrid
-                google_hybrid = 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'
-                folium.TileLayer(
-                    tiles=google_hybrid,
-                    attr='Google',
-                    name='Google Satellite',
-                    overlay=True,
-                    control=True
-                ).add_to(m)
-
-                # Lukis Poligon (Guna Lat/Lon)
-                folium_coords = df_map[['lat', 'lon']].values.tolist()
-                folium.Polygon(
-                    locations=folium_coords,
-                    color="yellow", weight=3, fill=True, fill_color="green", fill_opacity=0.3,
-                    popup=f"Luas: {area_m2:.2f} m²"
-                ).add_to(m)
-
-                # Marker Stesen
-                for _, row in df_map.iterrows():
-                    folium.CircleMarker(
-                        location=[row['lat'], row['lon']],
-                        radius=5, color="red", fill=True, fill_opacity=1,
-                        tooltip=f"STN: {int(row['STN'])}"
-                    ).add_to(m)
-
-                # Auto-zoom
-                m.fit_bounds(folium_coords)
-                folium.LayerControl(collapsed=False).add_to(m)
-                folium_static(m, width=1100, height=600)
-
-            # ================== MOD 2: MATPLOTLIB (Pelan Teknikal) ==================
-            else:
-                st.markdown("### 📐 Pelan Teknikal (Unit: Meter)")
-                fig, ax = plt.subplots(figsize=(10, 8))
-                x, y = line_geom.xy
-                ax.plot(x, y, linewidth=2, color='black', zorder=3)
-                ax.fill(x, y, color='green', alpha=0.1)
-                
-                # Label Luas
-                ax.text(centroid.x, centroid.y, f"LUAS\n{area_m2:.2f} m²", 
-                        fontsize=label_size_luas, fontweight='bold', ha='center',
-                        bbox=dict(boxstyle='round', fc='white', alpha=0.8))
-
-                # Plot Stesen
-                for _, row in df.iterrows():
-                    ax.scatter(row['E'], row['N'], color='red', s=40)
-                    ax.text(row['E'], row['N'], f" {int(row['STN'])}", fontsize=label_size_stn)
-
-                ax.set_aspect("equal")
-                ax.grid(True, linestyle='--', alpha=0.5)
-                st.pyplot(fig)
-
+                st.error("Fail CSV mesti mempunyai kolum: STN, E, N")
         except Exception as e:
-            st.error(f"⚠️ Masalah teknikal: {e}")
+            st.error(f"Ralat pemprosesan: {e}")
     else:
-        st.info("👋 Sila upload fail CSV (Contoh: point.csv) untuk memaparkan peta.")
+        st.info("Sila muat naik fail CSV untuk melihat visualisasi.")
