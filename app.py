@@ -6,19 +6,22 @@ from pyproj import Transformer
 from shapely.geometry import Polygon
 
 # ================== KONFIGURASI HALAMAN ==================
-st.set_page_config(page_title="Sistem Survey Lot - PUO", layout="wide")
+st.set_page_config(page_title="Sistem Survey Lot - PUO", layout="wide", page_icon="📍")
 
-# GANTIKAN URL INI dengan link GitHub anda yang sebenar
-# Format: https://raw.githubusercontent.com/[Username]/[Repo]/[Branch]/puo.png
+# GANTIKAN URL INI: Gunakan link 'Raw' daripada GitHub anda
+# Contoh: https://raw.githubusercontent.com/[USER]/[REPO]/[BRANCH]/puo.png
 LOGO_URL = "https://raw.githubusercontent.com/username_anda/repo_anda/main/puo.png"
 
-# Custom CSS
+# Custom CSS untuk mengikut gaya imej yang diberikan
 st.markdown(f"""
     <style>
+    /* Sidebar styling */
     [data-testid="stSidebar"] {{
         background-color: #1E1E1E;
         color: white;
     }}
+    
+    /* Header Banner styling */
     .header-box {{
         background-color: #444;
         background-image: url('https://www.transparenttextures.com/patterns/cubes.png');
@@ -31,7 +34,7 @@ st.markdown(f"""
         display: flex;
         align-items: center;
     }}
-    .header-logo-container {{
+    .header-logo-bg {{
         background-color: white;
         padding: 10px;
         border-radius: 50%;
@@ -46,7 +49,10 @@ st.markdown(f"""
         margin: 0;
         font-size: 40px;
         letter-spacing: 2px;
+        font-weight: bold;
     }}
+
+    /* Profile Section styling */
     .profile-section {{
         text-align: center;
         padding: 20px 0;
@@ -66,34 +72,38 @@ st.markdown(f"""
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
+# ================== FUNGSI PEMPROSESAN ==================
 def transform_coords(df, from_epsg):
     try:
-        transformer = Transformer.from_crs(f"EPSG:{{from_epsg}}", "EPSG:4326", always_xy=True)
+        # Menukar koordinat tempatan ke WGS84 (Lat/Lon)
+        transformer = Transformer.from_crs(f"EPSG:{from_epsg}", "EPSG:4326", always_xy=True)
         lon, lat = transformer.transform(df['E'].values, df['N'].values)
         df['lat'] = lat
         df['lon'] = lon
         return df
     except Exception as e:
-        st.error(f"Ralat EPSG: {{e}}")
+        st.error(f"Ralat Kod EPSG: {e}")
         return None
 
 # ================== HALAMAN LOGIN ==================
 if not st.session_state.logged_in:
-    cols = st.columns([1, 1, 1])
+    cols = st.columns([1, 1.5, 1])
     with cols[1]:
-        st.write("# 🔐 Login")
+        st.markdown("<h2 style='text-align: center;'>🔐 Log Masuk</h2>", unsafe_allow_html=True)
         user_id = st.text_input("ID Pengguna")
         password = st.text_input("Kata Laluan", type="password")
-        if st.button("Log Masuk", use_container_width=True):
+        
+        if st.button("Masuk Sekarang", use_container_width=True):
             if user_id == "67" and password == "ikmalkacak":
                 st.session_state.logged_in = True
                 st.rerun()
             else:
                 st.error("ID atau Kata Laluan Salah")
 else:
-    # ================== SIDEBAR ==================
+    # ================== SIDEBAR (DASHBOARD MENU) ==================
     with st.sidebar:
-        st.markdown(f"""
+        # Profile Section
+        st.markdown("""
             <div class="profile-section">
                 <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" class="profile-pic">
                 <h3 style='color:white; margin-top:10px;'>Hai, Malfoy!</h3>
@@ -101,13 +111,15 @@ else:
             </div>
             """, unsafe_allow_html=True)
         
-        # Paparan Logo di Sidebar menggunakan fungsi st.image untuk elak ralat cache
-        st.image(LOGO_URL, width=150)
+        # Logo PUO di bawah profil
+        st.image(LOGO_URL, caption="PUO - JKA", width=150)
         
         st.subheader("⚙️ Tetapan Paparan")
         uploaded_file = st.file_uploader("Upload fail CSV", type=["csv"])
         
         st.markdown("---")
+        
+        # Mod Peta Interaktif (Fix Layer Satelit)
         st.subheader("🌍 Mod Peta Interaktif")
         sat_toggle = st.toggle("On/Off Peta Satelit", value=True)
         
@@ -121,10 +133,10 @@ else:
             st.rerun()
 
     # ================== KANDUNGAN UTAMA ==================
-    # Header dengan Logo GitHub
+    # Header Banner dengan Logo
     st.markdown(f"""
         <div class="header-box">
-            <div class="header-logo-container">
+            <div class="header-logo-bg">
                 <img src="{LOGO_URL}" width="80">
             </div>
             <div class="header-text">
@@ -136,6 +148,7 @@ else:
 
     if uploaded_file is not None:
         try:
+            # Membaca Data
             df = pd.read_csv(uploaded_file)
             df.columns = [c.strip().upper() for c in df.columns]
             
@@ -143,39 +156,73 @@ else:
                 df_mapped = transform_coords(df.copy(), epsg_code)
                 
                 if df_mapped is not None:
+                    # Pengiraan Luas
                     coords = list(zip(df['E'], df['N']))
                     poly = Polygon(coords)
                     area = poly.area
                     
+                    # Paparan Metrik Ringkas
+                    st.metric("Luas Keseluruhan", f"{area:.2f} m²")
+                    
+                    # Peta
                     center_lat = df_mapped['lat'].mean()
                     center_lon = df_mapped['lon'].mean()
-                    
                     m = folium.Map(location=[center_lat, center_lon], zoom_start=19)
 
+                    # Fungsi Layer Satelit (Betul)
                     if sat_toggle:
-                        tile_url = 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}' if map_type == "Satalit (Hybrid)" else 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'
-                        folium.TileLayer(tiles=tile_url, attr='Google', name='Google Satellite', overlay=False).add_to(m)
+                        if map_type == "Satalit (Hybrid)":
+                            tile_url = 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'
+                        else:
+                            tile_url = 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}'
+                        
+                        folium.TileLayer(
+                            tiles=tile_url,
+                            attr='Google',
+                            name='Satelit',
+                            overlay=False
+                        ).add_to(m)
                     
+                    # Lukis Polygon Lot
                     locations = df_mapped[['lat', 'lon']].values.tolist()
-                    if locations[0] != locations[-1]: locations.append(locations[0])
+                    if locations[0] != locations[-1]:
+                        locations.append(locations[0])
                     
-                    folium.Polygon(locations, color="yellow", weight=3, fill=True, fill_opacity=0.2).add_to(m)
+                    folium.Polygon(
+                        locations, 
+                        color="yellow", 
+                        weight=3, 
+                        fill=True, 
+                        fill_opacity=0.2
+                    ).add_to(m)
 
+                    # Label Luas di tengah peta
                     folium.Marker(
                         [center_lat, center_lon],
-                        icon=folium.DivIcon(html=f'<div style="color: #2ecc71; font-weight: bold; font-size: 15pt;">{area:.2f} m²</div>')
+                        icon=folium.DivIcon(html=f'<div style="color: #2ecc71; font-weight: bold; font-size: 14pt; text-shadow: 1px 1px black;">{area:.2f} m²</div>')
                     ).add_to(m)
                     
+                    # Penanda Titik Stesen & Label Nombor
                     for _, row in df_mapped.iterrows():
-                        folium.CircleMarker([row['lat'], row['lon']], radius=5, color="red", fill=True, fill_color="white").add_to(m)
+                        folium.CircleMarker(
+                            [row['lat'], row['lon']], 
+                            radius=5, color="red", fill=True, fill_color="white"
+                        ).add_to(m)
+                        
                         folium.Marker(
                             [row['lat'], row['lon']],
-                            icon=folium.DivIcon(html=f'<div style="font-family: sans-serif; color: white; background: red; border-radius: 50%; width: 22px; height: 22px; text-align: center; font-size: 9pt; font-weight: bold; border: 2px solid white;">{int(row["STN"])}</div>')
+                            icon=folium.DivIcon(html=f'<div style="color: white; background: red; border-radius: 50%; width: 20px; height: 20px; text-align: center; font-size: 9pt; font-weight: bold; border: 1.5px solid white;">{int(row["STN"])}</div>')
                         ).add_to(m)
 
-                    folium_static(m, width=1000, height=500)
-                    st.dataframe(df_mapped[['STN', 'E', 'N', 'lat', 'lon']], use_container_width=True)
+                    folium_static(m, width=1100, height=500)
+                    
+                    # Data Table
+                    with st.expander("Lihat Jadual Koordinat"):
+                        st.dataframe(df_mapped[['STN', 'E', 'N', 'lat', 'lon']], use_container_width=True)
+
+            else:
+                st.error("Fail CSV tidak sah. Pastikan ada kolum: STN, E, N")
         except Exception as e:
-            st.error(f"Ralat: {e}")
+            st.error(f"Ralat Pemprosesan: {e}")
     else:
-        st.info("Sila muat naik fail CSV di sidebar.")
+        st.info("Sila muat naik fail koordinat (CSV) di bahagian sidebar.")
