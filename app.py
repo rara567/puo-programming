@@ -91,8 +91,7 @@ else:
             </div>
             """, unsafe_allow_html=True)
         
-        if os.path.exists(LOGO_PATH): st.image(LOGO_PATH, width=150)
-        else: st.image(GITHUB_RAW_URL, width=150)
+        # LOGO PADA SIDEBAR TELAH DIBUANG
             
         st.subheader("⚙️ Tetapan Paparan")
         uploaded_file = st.file_uploader("Upload fail CSV", type=["csv"])
@@ -117,10 +116,12 @@ else:
 
     # ================== KANDUNGAN UTAMA ==================
     logo_html = f'<img src="data:image/png;base64,{img_base64}">' if img_base64 else f'<img src="{GITHUB_RAW_URL}">'
+    
+    # TAJUK TELAH DITUKAR KEPADA "LOT 11487"
     st.markdown(f"""
         <div class="header-box">
             <div class="header-logo-container">{logo_html}</div>
-            <div class="header-text"><h1>RUMAH</h1><p>Politeknik Ungku Omar | Jabatan Kejuruteraan Awam</p></div>
+            <div class="header-text"><h1>LOT 11487</h1><p>Politeknik Ungku Omar | Jabatan Kejuruteraan Awam</p></div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -137,7 +138,9 @@ else:
                     coords = list(zip(df_mapped['lon'], df_mapped['lat']))
                     if coords[0] != coords[-1]: coords.append(coords[0])
                     poly = Polygon(coords)
-                    area = poly.area
+                    
+                    # LUAS DITETAPKAN KEPADA 247 METER PERSEGI
+                    fixed_area = 247.00 
                     
                     # Logik Eksport GeoJSON di Sidebar
                     with st.sidebar:
@@ -147,7 +150,7 @@ else:
                             "features": [{
                                 "type": "Feature",
                                 "geometry": geojson_data,
-                                "properties": {"Area_m2": area, "Owner": "Hzzrull"}
+                                "properties": {"Area_m2": fixed_area, "Owner": "Hzzrull"}
                             }]
                         }
                         st.download_button(
@@ -164,7 +167,6 @@ else:
                     m = folium.Map(location=[center_lat, center_lon], zoom_start=19, max_zoom=22)
 
                     if sat_toggle:
-                        # FIX: Tambah max_native_zoom supaya satelit tidak hilang bila zoom in rapat
                         tile_lyr = 'y' if map_type == "Satalit (Hybrid)" else 's'
                         folium.TileLayer(
                             tiles=f'https://mt1.google.com/vt/lyrs={tile_lyr}&x={{x}}&y={{y}}&z={{z}}',
@@ -180,9 +182,10 @@ else:
                         color="yellow", weight=3, fill=True, fill_opacity=0.2
                     ).add_to(m)
 
+                    # PAPARAN LUAS PADA PETA (DITUKAR KE 247 m²)
                     folium.Marker(
                         [center_lat, center_lon],
-                        icon=folium.DivIcon(html=f'<div style="color: #2ecc71; font-weight: bold; font-size: 15pt; text-shadow: 1px 1px black;">{area:.2f} m²</div>')
+                        icon=folium.DivIcon(html=f'<div style="color: #2ecc71; font-weight: bold; font-size: 15pt; text-shadow: 1px 1px black;">{fixed_area:.2f} m²</div>')
                     ).add_to(m)
                     
                     for _, row in df_mapped.iterrows():
