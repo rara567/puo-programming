@@ -16,6 +16,7 @@ st.set_page_config(page_title="Sistem Survey Lot - PUO", layout="wide", page_ico
 
 LOGO_PATH = "puo.png" 
 VIDEO_PATH = "video.mp4" 
+PROFILE_PIC_PATH = "me.jpg"  # Fail gambar anda
 
 def get_base64_file(file_path):
     if os.path.exists(file_path):
@@ -45,21 +46,53 @@ def calculate_bearing_distance(p1, p2):
 
 img_base64 = get_base64_file(LOGO_PATH)
 vid_base64 = get_base64_file(VIDEO_PATH)
+profile_base64 = get_base64_file(PROFILE_PIC_PATH)
 
 # ================== CUSTOM CSS ==================
 st.markdown(f"""
     <style>
     [data-testid="stSidebar"] {{ background-color: #1E1E1E; color: white; }}
+    
     .header-container {{ position: relative; width: 100%; height: 200px; overflow: hidden; border-radius: 15px; margin-bottom: 20px; border-bottom: 5px solid #d35400; display: flex; align-items: center; background-color: black; }}
     #video-bg {{ position: absolute; top: 50%; left: 50%; min-width: 100%; min-height: 100%; transform: translate(-50%, -50%); object-fit: cover; z-index: 0; }}
     .header-overlay {{ position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.4); z-index: 1; }}
     .header-content {{ position: relative; z-index: 2; display: flex; align-items: center; padding-left: 30px; color: white; }}
     .header-logo-container {{ background-color: white; padding: 5px; border-radius: 50%; margin-right: 20px; width: 100px; height: 100px; display: flex; justify-content: center; align-items: center; overflow: hidden; }}
     .header-logo-container img {{ max-width: 90%; max-height: 90%; }}
-    .profile-section {{ text-align: center; padding: 20px 0; background: linear-gradient(180deg, #0097b2 0%, #005f73 100%); border-radius: 15px; margin-bottom: 20px; }}
-    .profile-pic {{ width: 80px; border-radius: 50%; border: 3px solid white; }}
+
+    /* Profile Section Styling */
+    .profile-card {{
+        position: relative;
+        text-align: center;
+        padding: 30px 10px;
+        border-radius: 20px;
+        overflow: hidden;
+        margin-bottom: 20px;
+        background-image: url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=1000&auto=format&fit=crop');
+        background-size: cover;
+        background-position: center;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }}
+    .profile-card::before {{
+        content: "";
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 1;
+    }}
+    .profile-content {{ position: relative; z-index: 2; }}
+    .profile-pic {{
+        width: 90px;
+        height: 90px;
+        border-radius: 50%;
+        border: 3px solid #00d2ff;
+        object-fit: cover;
+        margin-bottom: 10px;
+        box-shadow: 0px 4px 15px rgba(0,0,0,0.5);
+    }}
+    .profile-name {{ color: white; font-weight: bold; font-size: 1.2rem; margin: 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }}
+    .profile-rank {{ color: #00d2ff; font-weight: bold; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); }}
     
-    /* Login Interface Styling */
     .login-box {{
         background: rgba(255, 255, 255, 0.05);
         padding: 40px;
@@ -80,38 +113,29 @@ if "stored_password" not in st.session_state:
 
 if not st.session_state.logged_in:
     cols = st.columns([1, 1.2, 1])
-    
     with cols[1]:
         st.markdown('<div class="login-box">', unsafe_allow_html=True)
         st.image("https://cdn-icons-png.flaticon.com/512/5087/5087579.png", width=100)
         st.title("Survey Lot Rumah")
         
         if not st.session_state.reset_mode:
-            # --- Paparan Log In ---
             user_id = st.text_input("👤 Masukkan ID:", placeholder="Contoh: 67")
             password = st.text_input("🔑 Masukkan Kata Laluan:", type="password")
-            
             if st.button("Log Masuk", use_container_width=True, type="primary"):
                 if user_id == "67" and password == st.session_state.stored_password:
                     st.session_state.logged_in = True
                     st.rerun()
                 else:
                     st.error("ID atau Kata Laluan Salah!")
-            
-            # Guna st.button biasa tanpa variant untuk elak ralat
             if st.button("❓ Lupa Kata Laluan?"):
                 st.session_state.reset_mode = True
                 st.rerun()
-        
         else:
-            # --- Paparan Lupa Kata Laluan ---
             st.subheader("Set Semula Kata Laluan")
             verify_id = st.text_input("Sila masukkan ID anda:")
             secret_hint = st.text_input("Siapakah nama pensyarah kegemaran anda? (Hint: Jawapan adalah 'PUO')", type="password")
-            
             new_password = st.text_input("Masukkan Kata Laluan Baru:", type="password")
             confirm_password = st.text_input("Sahkan Kata Laluan Baru:", type="password")
-            
             col_reset1, col_reset2 = st.columns(2)
             with col_reset1:
                 if st.button("Batal", use_container_width=True):
@@ -134,7 +158,19 @@ if not st.session_state.logged_in:
 else:
     # ================== SIDEBAR ==================
     with st.sidebar:
-        st.markdown('<div class="profile-section"><img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" class="profile-pic"><h3 style="color:white; margin-top:10px;">Hai, Hzzrull!</h3><p style="color:white; opacity:0.8;">Student</p></div>', unsafe_allow_html=True)
+        # Menggunakan fail me.jpg jika wujud, jika tidak guna placeholder
+        img_src = f"data:image/jpeg;base64,{profile_base64}" if profile_base64 else "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
+        
+        st.markdown(f'''
+            <div class="profile-card">
+                <div class="profile-content">
+                    <img src="{img_src}" class="profile-pic">
+                    <p class="profile-name">Hai, Malfoy!</p>
+                    <p class="profile-rank">Student</p>
+                </div>
+            </div>
+        ''', unsafe_allow_html=True)
+
         uploaded_file = st.file_uploader("Upload fail CSV", type=["csv"])
         sat_toggle = st.toggle("On/Off Peta Interaktif (Satelit)", value=True)
         map_selection = st.radio("Pilih Jenis Peta:", ["Satalit (Hybrid)", "Street Map (Standard)"]) if sat_toggle else "Satalit (Hybrid)"
@@ -161,23 +197,19 @@ else:
         try:
             df = pd.read_csv(uploaded_file)
             df.columns = [c.strip().upper() for c in df.columns]
-            
             transformer = Transformer.from_crs(f"EPSG:{epsg_code}", "EPSG:4326", always_xy=True)
             lon, lat = transformer.transform(df['E'].values, df['N'].values)
             df_mapped = df.assign(lat=lat, lon=lon)
-            
             coords_local = list(zip(df_mapped['E'], df_mapped['N']))
             coords_local.append(coords_local[0])
             poly_obj = Polygon(coords_local)
             calculated_area = poly_obj.area 
 
-            bearings, distances, rotations, mid_l, mid_w = [], [], [], [], []
+            bearings, distances, rotations, mid_w = [], [], [], []
             for i in range(len(df_mapped)):
                 p1, p2 = coords_local[i], coords_local[i+1]
                 b, d, r = calculate_bearing_distance(p1, p2)
                 bearings.append(b); distances.append(d); rotations.append(r)
-                mid_l.append(((p1[0]+p2[0])/2, (p1[1]+p2[1])/2))
-                
                 p1_gps = (df_mapped.iloc[i]['lat'], df_mapped.iloc[i]['lon'])
                 p2_gps = (df_mapped.iloc[0]['lat'] if i==len(df_mapped)-1 else df_mapped.iloc[i+1]['lat'],
                           df_mapped.iloc[0]['lon'] if i==len(df_mapped)-1 else df_mapped.iloc[i+1]['lon'])
@@ -187,7 +219,6 @@ else:
                 m = folium.Map(location=[df_mapped['lat'].mean(), df_mapped['lon'].mean()], zoom_start=20)
                 t_type = 'y' if map_selection == "Satalit (Hybrid)" else 'm'
                 folium.TileLayer(tiles=f'https://mt1.google.com/vt/lyrs={t_type}&x={{x}}&y={{y}}&z={{z}}', attr='Google', max_zoom=22).add_to(m)
-                
                 folium.Polygon([[la, lo] for lo, la in list(zip(df_mapped['lon'], df_mapped['lat']))+[(df_mapped['lon'][0], df_mapped['lat'][0])]], 
                                color="yellow", weight=3, fill=True, fill_opacity=0.2).add_to(m)
                 
@@ -211,33 +242,8 @@ else:
                         text-align:center; font-weight:bold; border:2px solid white; display:flex; align-items:center; justify-content:center;
                         font-size: {station_circle_size/2}px; transform: translate(-50%, -50%);">
                         {int(r["STN"])}</div>''')).add_to(m)
-                
                 folium_static(m, width=1100, height=550)
             
-            else:
-                fig, ax = plt.subplots(figsize=(10, 8))
-                pts = np.array(coords_local)
-                ax.set_axis_off() 
-                ax.add_patch(MatplotlibPolygon(pts, facecolor='#D8BFD8', alpha=0.8, zorder=1))
-                ax.plot(pts[:,0], pts[:,1], color='yellow', linewidth=3, zorder=2)
-
-                for i, ml in enumerate(mid_l):
-                    ax.text(ml[0], ml[1], f"{bearings[i]}\n{distances[i]:.2f}m", 
-                            color='brown', fontsize=bearing_font_size+3, fontweight='bold', ha='center', va='center', 
-                            rotation=rotations[i], zorder=4)
-
-                if show_area_label:
-                    cx, cy = poly_obj.centroid.x, poly_obj.centroid.y
-                    ax.text(cx, cy, f"{calculated_area:.2f} m²", color='green', fontsize=area_font_size, 
-                            fontweight='bold', ha='center', zorder=5, bbox=dict(facecolor='white', edgecolor='green', boxstyle='round,pad=0.3'))
-                
-                for _, r in df_mapped.iterrows():
-                    ax.scatter(r['E'], r['N'], color='red', s=station_circle_size*8, zorder=6, edgecolors='white', linewidth=1.5)
-                    ax.text(r['E'], r['N'], str(int(r['STN'])), color='white', ha='center', va='center', fontsize=9, fontweight='bold', zorder=7)
-                
-                ax.set_aspect('equal')
-                st.pyplot(fig)
-
             st.dataframe(df_mapped[['STN', 'E', 'N', 'lat', 'lon']].style.format(precision=3), use_container_width=True)
             
         except Exception as e:
