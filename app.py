@@ -49,20 +49,14 @@ vid_base64 = get_base64_file(VIDEO_PATH)
 # ================== CUSTOM CSS (LOGIN & DASHBOARD) ==================
 st.markdown(f"""
     <style>
-    /* Global Style */
     .stApp {{ background-color: #0E1117; }}
-    
-    /* Login Interface Enhancements */
     .login-header {{
         text-align: center; color: white;
         font-size: 3rem; font-weight: bold;
         margin-bottom: 2rem;
         font-family: 'Segoe UI', sans-serif;
     }}
-
     [data-testid="stSidebar"] {{ background-color: #1E1E1E; color: white; }}
-    
-    /* Header Video Style */
     .header-container {{
         position: relative; width: 100%; height: 200px;
         overflow: hidden; border-radius: 15px; margin-bottom: 20px;
@@ -88,8 +82,6 @@ st.markdown(f"""
         display: flex; justify-content: center; align-items: center; overflow: hidden;
     }}
     .header-logo-container img {{ max-width: 90%; max-height: 90%; }}
-
-    /* Profile Sidebar */
     .profile-section {{
         text-align: center; padding: 20px 0;
         background: linear-gradient(180deg, #0097b2 0%, #005f73 100%);
@@ -170,9 +162,26 @@ else:
                     mid_w.append(((coords_wgs_closed[i][1]+coords_wgs_closed[i+1][1])/2, (coords_wgs_closed[i][0]+coords_wgs_closed[i+1][0])/2))
 
                 if sat_toggle:
-                    m = folium.Map(location=[df_mapped['lat'].mean(), df_mapped['lon'].mean()], zoom_start=20)
+                    # PERBAIKAN: Menetapkan had zoom yang tetap untuk mengelakkan fallback ke street map
+                    m = folium.Map(
+                        location=[df_mapped['lat'].mean(), df_mapped['lon'].mean()], 
+                        zoom_start=20, 
+                        max_zoom=22 # Had zoom maksimum aplikasi
+                    )
+                    
                     t_type = 'y' if map_selection == "Satalit (Hybrid)" else 'm'
-                    folium.TileLayer(tiles=f'https://mt1.google.com/vt/lyrs={t_type}&x={{x}}&y={{y}}&z={{z}}', attr='Google').add_to(m)
+                    
+                    # PERBAIKAN: Menambah max_native_zoom untuk memaksa satelit kekal walaupun zoom dalam
+                    folium.TileLayer(
+                        tiles=f'https://mt1.google.com/vt/lyrs={t_type}&x={{x}}&y={{y}}&z={{z}}', 
+                        attr='Google',
+                        name='Google Maps',
+                        max_zoom=22,
+                        max_native_zoom=19, # Satelit biasanya berhenti di zoom 19, kod ini akan 'stretch' imej selepas itu
+                        overlay=False,
+                        control=True
+                    ).add_to(m)
+
                     folium.Polygon([[la, lo] for lo, la in coords_wgs_closed], color="yellow", weight=3, fill=True, fill_opacity=0.2).add_to(m)
                     if show_area_label:
                         folium.Marker([df_mapped['lat'].mean(), df_mapped['lon'].mean()], icon=folium.DivIcon(html=f'<div style="color:#2ecc71; font-weight:bold; font-size:{area_font_size}pt; background:white; padding:2px 5px; border:1px solid #2ecc71;">{fixed_area:.2f} m²</div>')).add_to(m)
@@ -180,11 +189,12 @@ else:
                         folium.Marker(mp, icon=folium.DivIcon(html=f'<div style="color:yellow; font-size:{bearing_font_size}pt; font-weight:bold; text-shadow:1px 1px black; text-align:center;">{bearings[i].replace(chr(34), chr(34)+"<br>")}{distances[i]:.2f}m</div>')).add_to(m)
                     for _, r in df_mapped.iterrows():
                         folium.Marker([r['lat'], r['lon']], icon=folium.DivIcon(html=f'<div style="color:white; background:red; border-radius:50%; width:{station_circle_size}px; height:{station_circle_size}px; text-align:center; font-weight:bold; border:2px solid white; display:flex; align-items:center; justify-content:center;">{int(r["STN"])}</div>')).add_to(m)
+                    
                     folium_static(m, width=1100, height=550)
                 else:
                     st.markdown("### 📊 Plot Koordinat Tempatan (Graf)")
                     fig, ax = plt.subplots(figsize=(12, 8))
-                    ax.axis('off') # Buang garisan putih/box axis
+                    ax.axis('off')
                     ax.xaxis.set_major_formatter(ScalarFormatter(useMathText=True))
                     ax.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
                     
