@@ -3,13 +3,10 @@ import pandas as pd
 import folium
 from streamlit_folium import folium_static
 from pyproj import Transformer
-from shapely.geometry import Polygon, Point, mapping
+from shapely.geometry import Polygon, Point
 import base64
 import os
 import math
-import matplotlib.pyplot as plt
-import numpy as np
-from matplotlib.patches import Polygon as MatplotlibPolygon
 import json
 
 # ================== KONFIGURASI HALAMAN ==================
@@ -19,7 +16,6 @@ LOGO_PATH = "puo.png"
 VIDEO_PATH = "video.mp4" 
 
 def get_base64_profile():
-    # Cuba cari fail dengan pelbagai kemungkinan nama
     possible_names = ["me", "me.jpeg", "me.jpg"]
     for name in possible_names:
         if os.path.exists(name):
@@ -66,7 +62,6 @@ profile_base64 = get_base64_profile()
 st.markdown(f"""
     <style>
     [data-testid="stSidebar"] {{ background-color: #1E1E1E; color: white; }}
-    
     .header-container {{ position: relative; width: 100%; height: 200px; overflow: hidden; border-radius: 15px; margin-bottom: 20px; border-bottom: 5px solid #d35400; display: flex; align-items: center; background-color: black; }}
     #video-bg {{ position: absolute; top: 50%; left: 50%; min-width: 100%; min-height: 100%; transform: translate(-50%, -50%); object-fit: cover; z-index: 0; }}
     .header-overlay {{ position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.4); z-index: 1; }}
@@ -74,7 +69,6 @@ st.markdown(f"""
     .header-logo-container {{ background-color: white; padding: 5px; border-radius: 50%; margin-right: 20px; width: 100px; height: 100px; display: flex; justify-content: center; align-items: center; overflow: hidden; }}
     .header-logo-container img {{ max-width: 90%; max-height: 90%; }}
 
-    /* Profile Section Styling */
     .profile-card {{
         position: relative;
         text-align: center;
@@ -87,33 +81,13 @@ st.markdown(f"""
         background-position: center;
         border: 1px solid rgba(255, 255, 255, 0.2);
     }}
-    .profile-card::before {{
-        content: "";
-        position: absolute;
-        top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0, 0, 0, 0.3);
-        z-index: 1;
-    }}
+    .profile-card::before {{ content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.3); z-index: 1; }}
     .profile-content {{ position: relative; z-index: 2; }}
-    .profile-pic {{
-        width: 100px;
-        height: 100px;
-        border-radius: 50%;
-        border: 3px solid white;
-        object-fit: cover;
-        margin-bottom: 10px;
-        box-shadow: 0px 4px 15px rgba(0,0,0,0.5);
-    }}
+    .profile-pic {{ width: 100px; height: 100px; border-radius: 50%; border: 3px solid white; object-fit: cover; margin-bottom: 10px; box-shadow: 0px 4px 15px rgba(0,0,0,0.5); }}
     .profile-name {{ color: white; font-weight: bold; font-size: 1.2rem; margin: 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }}
     .profile-rank {{ color: #00d2ff; font-weight: bold; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); }}
     
-    .login-box {{
-        background: rgba(255, 255, 255, 0.05);
-        padding: 40px;
-        border-radius: 20px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        text-align: center;
-    }}
+    .login-box {{ background: rgba(255, 255, 255, 0.05); padding: 40px; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.1); text-align: center; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -150,23 +124,13 @@ if not st.session_state.logged_in:
             secret_hint = st.text_input("Siapakah nama pensyarah kegemaran anda? (Hint: Jawapan adalah 'PUO')", type="password")
             new_password = st.text_input("Masukkan Kata Laluan Baru:", type="password")
             confirm_password = st.text_input("Sahkan Kata Laluan Baru:", type="password")
-            col_reset1, col_reset2 = st.columns(2)
-            with col_reset1:
-                if st.button("Batal", use_container_width=True):
-                    st.session_state.reset_mode = False
-                    st.rerun()
-            with col_reset2:
-                if st.button("Simpan", use_container_width=True, type="primary"):
-                    if verify_id == "67" and secret_hint.lower() == "puo":
-                        if new_password == confirm_password and len(new_password) > 0:
-                            st.session_state.stored_password = new_password
-                            st.success("Berjaya dikemaskini!")
-                            st.session_state.reset_mode = False
-                            st.rerun()
-                        else:
-                            st.error("Kata laluan tidak sepadan!")
-                    else:
-                        st.error("Maklumat pengesahan salah!")
+            if st.button("Simpan", use_container_width=True, type="primary"):
+                if verify_id == "67" and secret_hint.lower() == "puo":
+                    if new_password == confirm_password and len(new_password) > 0:
+                        st.session_state.stored_password = new_password
+                        st.success("Berjaya!")
+                        st.session_state.reset_mode = False
+                        st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
 else:
@@ -177,30 +141,21 @@ else:
         else:
             img_html = '<img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" class="profile-pic">'
         
-        st.markdown(f'''
-            <div class="profile-card">
-                <div class="profile-content">
-                    {img_html}
-                    <p class="profile-name">Hai, Malfoy!</p>
-                    <p class="profile-rank">Student</p>
-                </div>
-            </div>
-        ''', unsafe_allow_html=True)
+        st.markdown(f'''<div class="profile-card"><div class="profile-content">{img_html}<p class="profile-name">Hai, Malfoy!</p><p class="profile-rank">Student</p></div></div>''', unsafe_allow_html=True)
 
         uploaded_file = st.file_uploader("Upload fail CSV", type=["csv"])
         
         st.markdown("---")
         st.subheader("🗺️ Kawalan Lapisan")
         sat_toggle = st.toggle("Peta Interaktif (Satelit)", value=True)
-        show_polygon = st.toggle("Papar Polygon Lot", value=False) # Diubah ke False
-        show_bearing_dist = st.toggle("Papar Bearing & Jarak", value=False) # Ciri Baru (Default False)
+        # SATU SUIS UNTUK SEMUA (Polygon, Bearing, Jarak, Luas, Nombor Bucu)
+        show_all_layers = st.toggle("Papar Layer Lot (Semua)", value=False)
         
         map_selection = st.radio("Jenis Peta:", ["Satalit (Hybrid)", "Street Map (Standard)"]) if sat_toggle else "Satalit (Hybrid)"
         epsg_code = st.text_input("🔵 Kod EPSG:", value="4390")
         
         st.markdown("---")
         st.subheader("🖋️ Gaya Label")
-        show_area_label = st.checkbox("Papar Label LUAS", value=True)
         station_circle_size = st.slider("Saiz Bulatan Stesen", 10, 40, 22)
         bearing_font_size = st.slider("Saiz Bearing/Jarak", 5, 15, 9)
         area_font_size = st.slider("Saiz Tulisan LUAS", 10, 30, 20)
@@ -227,74 +182,47 @@ else:
             poly_obj = Polygon(coords_local)
             calculated_area = poly_obj.area 
 
-            # GeoJSON Export Logic
+            # GeoJSON Export (Kekal)
             features = []
             poly_gps_coords = [[lo, la] for lo, la in list(zip(df_mapped['lon'], df_mapped['lat']))]
             poly_gps_coords.append(poly_gps_coords[0])
-            features.append({
-                "type": "Feature",
-                "properties": {"name": "Lot Polygon", "area_m2": round(calculated_area, 2)},
-                "geometry": {"type": "Polygon", "coordinates": [poly_gps_coords]}
-            })
+            features.append({"type": "Feature", "properties": {"name": "Lot", "area": round(calculated_area,2)}, "geometry": {"type": "Polygon", "coordinates": [poly_gps_coords]}})
             for _, r in df_mapped.iterrows():
-                features.append({
-                    "type": "Feature",
-                    "properties": {"stn": int(r["STN"]), "east": r["E"], "north": r["N"]},
-                    "geometry": {"type": "Point", "coordinates": [r["lon"], r["lat"]]}
-                })
+                features.append({"type": "Feature", "properties": {"stn": int(r["STN"])}, "geometry": {"type": "Point", "coordinates": [r["lon"], r["lat"]]}})
             
-            geojson_data = {"type": "FeatureCollection", "features": features}
-            geojson_str = json.dumps(geojson_data, indent=2)
-
-            st.sidebar.download_button(
-                label="📥 Eksport ke QGIS (GeoJSON)",
-                data=geojson_str,
-                file_name="lot_survey.geojson",
-                mime="application/json",
-                use_container_width=True
-            )
-
-            bearings, distances, rotations, mid_w = [], [], [], []
-            for i in range(len(df_mapped)):
-                p1, p2 = coords_local[i], coords_local[i+1]
-                b, d, r = calculate_bearing_distance(p1, p2)
-                bearings.append(b); distances.append(d); rotations.append(r)
-                p1_gps = (df_mapped.iloc[i]['lat'], df_mapped.iloc[i]['lon'])
-                p2_gps = (df_mapped.iloc[0]['lat'] if i==len(df_mapped)-1 else df_mapped.iloc[i+1]['lat'],
-                          df_mapped.iloc[0]['lon'] if i==len(df_mapped)-1 else df_mapped.iloc[i+1]['lon'])
-                mid_w.append(((p1_gps[0]+p2_gps[0])/2, (p1_gps[1]+p2_gps[1])/2))
+            geojson_str = json.dumps({"type": "FeatureCollection", "features": features}, indent=2)
+            st.sidebar.download_button(label="📥 Eksport ke QGIS (GeoJSON)", data=geojson_str, file_name="lot.geojson", mime="application/json", use_container_width=True)
 
             if sat_toggle:
                 m = folium.Map(location=[df_mapped['lat'].mean(), df_mapped['lon'].mean()], zoom_start=20)
                 t_type = 'y' if map_selection == "Satalit (Hybrid)" else 'm'
                 folium.TileLayer(tiles=f'https://mt1.google.com/vt/lyrs={t_type}&x={{x}}&y={{y}}&z={{z}}', attr='Google', max_zoom=22).add_to(m)
                 
-                if show_polygon:
+                # JIKA SUIS UTAMA DIHIDUPKAN (ON)
+                if show_all_layers:
+                    # 1. Papar Polygon
                     folium.Polygon([[la, lo] for lo, la in list(zip(df_mapped['lon'], df_mapped['lat']))+[(df_mapped['lon'][0], df_mapped['lat'][0])]], 
                                    color="yellow", weight=3, fill=True, fill_opacity=0.2).add_to(m)
-                
-                if show_area_label:
+                    
+                    # 2. Papar Luas
                     folium.Marker([df_mapped['lat'].mean(), df_mapped['lon'].mean()], 
-                                  icon=folium.DivIcon(html=f'''<div style="color: #00FF00; font-weight: 900; font-size: {area_font_size}pt; 
-                                  text-shadow: 2px 2px 4px #000; white-space: nowrap; transform: translate(-50%, -50%);">
-                                  {calculated_area:.2f} m²</div>''')).add_to(m)
+                                  icon=folium.DivIcon(html=f'''<div style="color: #00FF00; font-weight: 900; font-size: {area_font_size}pt; text-shadow: 2px 2px 4px #000; white-space: nowrap; transform: translate(-50%, -50%);">{calculated_area:.2f} m²</div>''')).add_to(m)
+                    
+                    # 3. Papar Bearing & Jarak
+                    for i in range(len(df_mapped)):
+                        p1, p2 = coords_local[i], coords_local[i+1]
+                        b, d, r = calculate_bearing_distance(p1, p2)
+                        p1_gps = (df_mapped.iloc[i]['lat'], df_mapped.iloc[i]['lon'])
+                        p2_gps = (df_mapped.iloc[0]['lat'] if i==len(df_mapped)-1 else df_mapped.iloc[i+1]['lat'],
+                                  df_mapped.iloc[0]['lon'] if i==len(df_mapped)-1 else df_mapped.iloc[i+1]['lon'])
+                        mid = ((p1_gps[0]+p2_gps[0])/2, (p1_gps[1]+p2_gps[1])/2)
+                        
+                        folium.Marker(mid, icon=folium.DivIcon(html=f'''<div style="color: #ffff00; font-family: 'Arial Black'; font-size: {bearing_font_size}pt; font-weight: bold; text-align: center; text-shadow: 1px 1px 2px #000; width: 150px; transform: translate(-50%, -50%) rotate({-r}deg);">{b}<br><span style="color: white;">{d:.2f}m</span></div>''')).add_to(m)
+                    
+                    # 4. Papar Nombor Bucu (Stesen)
+                    for _, r in df_mapped.iterrows():
+                        folium.Marker([r['lat'], r['lon']], icon=folium.DivIcon(html=f'''<div style="color:white; background:red; border-radius:50%; width:{station_circle_size}px; height:{station_circle_size}px; text-align:center; font-weight:bold; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size: {station_circle_size/2}px; transform: translate(-50%, -50%);">{int(r["STN"])}</div>''')).add_to(m)
                 
-                # Logik kawalan paparan Bearing & Jarak
-                if show_bearing_dist:
-                    for i, mp in enumerate(mid_w):
-                        folium.Marker(mp, icon=folium.DivIcon(html=f'''
-                            <div style="color: #ffff00; font-family: 'Arial Black', sans-serif; font-size: {bearing_font_size}pt; 
-                                font-weight: bold; text-align: center; text-shadow: 1px 1px 2px #000; width: 150px;
-                                transform: translate(-50%, -50%) rotate({-rotations[i]}deg);">
-                                {bearings[i]}<br><span style="color: white;">{distances[i]:.2f}m</span>
-                            </div>''')).add_to(m)
-                
-                for _, r in df_mapped.iterrows():
-                    folium.Marker([r['lat'], r['lon']], icon=folium.DivIcon(html=f'''
-                        <div style="color:white; background:red; border-radius:50%; width:{station_circle_size}px; height:{station_circle_size}px; 
-                        text-align:center; font-weight:bold; border:2px solid white; display:flex; align-items:center; justify-content:center;
-                        font-size: {station_circle_size/2}px; transform: translate(-50%, -50%);">
-                        {int(r["STN"])}</div>''')).add_to(m)
                 folium_static(m, width=1100, height=550)
             
             st.dataframe(df_mapped[['STN', 'E', 'N', 'lat', 'lon']].style.format(precision=3), use_container_width=True)
