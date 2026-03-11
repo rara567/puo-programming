@@ -3,13 +3,14 @@ import pandas as pd
 import folium
 from streamlit_folium import folium_static
 from pyproj import Transformer
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, Point, mapping
 import base64
 import os
 import math
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Polygon as MatplotlibPolygon
+import json
 
 # ================== KONFIGURASI HALAMAN ==================
 st.set_page_config(page_title="Sistem Survey Lot - PUO", layout="wide", page_icon="📍")
@@ -171,7 +172,6 @@ if not st.session_state.logged_in:
 else:
     # ================== SIDEBAR ==================
     with st.sidebar:
-        # Menentukan sumber imej (me, me.jpeg atau me.jpg)
         if profile_base64:
             img_html = f'<img src="data:image/jpeg;base64,{profile_base64}" class="profile-pic">'
         else:
@@ -188,8 +188,13 @@ else:
         ''', unsafe_allow_html=True)
 
         uploaded_file = st.file_uploader("Upload fail CSV", type=["csv"])
-        sat_toggle = st.toggle("On/Off Peta Interaktif (Satelit)", value=True)
-        map_selection = st.radio("Pilih Jenis Peta:", ["Satalit (Hybrid)", "Street Map (Standard)"]) if sat_toggle else "Satalit (Hybrid)"
+        
+        st.markdown("---")
+        st.subheader("🗺️ Kawalan Lapisan")
+        sat_toggle = st.toggle("Peta Interaktif (Satelit)", value=True)
+        show_polygon = st.toggle("Papar Polygon Lot", value=True)
+        
+        map_selection = st.radio("Jenis Peta:", ["Satalit (Hybrid)", "Street Map (Standard)"]) if sat_toggle else "Satalit (Hybrid)"
         epsg_code = st.text_input("🔵 Kod EPSG:", value="4390")
         
         st.markdown("---")
@@ -198,7 +203,6 @@ else:
         station_circle_size = st.slider("Saiz Bulatan Stesen", 10, 40, 22)
         bearing_font_size = st.slider("Saiz Bearing/Jarak", 5, 15, 9)
         area_font_size = st.slider("Saiz Tulisan LUAS", 10, 30, 20)
-        station_label_offset = st.slider("Jarak Label Stesen ke Luar", 0.1, 3.0, 1.5, 0.1)
 
         if st.button("🚪 Log Keluar", use_container_width=True):
             st.session_state.logged_in = False
@@ -216,10 +220,41 @@ else:
             transformer = Transformer.from_crs(f"EPSG:{epsg_code}", "EPSG:4326", always_xy=True)
             lon, lat = transformer.transform(df['E'].values, df['N'].values)
             df_mapped = df.assign(lat=lat, lon=lon)
+            
             coords_local = list(zip(df_mapped['E'], df_mapped['N']))
             coords_local.append(coords_local[0])
             poly_obj = Polygon(coords_local)
             calculated_area = poly_obj.area 
+
+            # GeoJSON Export Logic
+            features = []
+            # Add Polygon
+            poly_gps_coords = [[lo, la] for lo, la in list(zip(df_mapped['lon'], df_mapped['lat']))]
+            poly_gps_coords.append(poly_gps_coords[0])
+            features.append({
+                "type": "Feature",
+                "properties": {"name": "Lot Polygon", "area_m2": round(calculated_area, 2)},
+                "geometry": {"type": "Polygon", "coordinates": [poly_gps_coords]}
+            })
+            # Add Points (Batu Sempadan)
+            for _, r in df_mapped.iterrows():
+                features.append({
+                    "type": "Feature",
+                    "properties": {"stn": int(r["STN"]), "east": r["E"], "north": r["N"]},
+                    "geometry": {"type": "Point", "coordinates": [r["lon"], r["lat"]]}
+                })
+            
+            geojson_data = {"type": "FeatureCollection", "features": features}
+            geojson_str = json.dumps(geojson_data, indent=2)
+
+            # Download Button
+            st.sidebar.download_button(
+                label="📥 Eksport ke QGIS (GeoJSON)",
+                data=geojson_str,
+                file_name="lot_survey.geojson",
+                mime="application/json",
+                use_container_width=True
+            )
 
             bearings, distances, rotations, mid_w = [], [], [], []
             for i in range(len(df_mapped)):
@@ -235,8 +270,10 @@ else:
                 m = folium.Map(location=[df_mapped['lat'].mean(), df_mapped['lon'].mean()], zoom_start=20)
                 t_type = 'y' if map_selection == "Satalit (Hybrid)" else 'm'
                 folium.TileLayer(tiles=f'https://mt1.google.com/vt/lyrs={t_type}&x={{x}}&y={{y}}&z={{z}}', attr='Google', max_zoom=22).add_to(m)
-                folium.Polygon([[la, lo] for lo, la in list(zip(df_mapped['lon'], df_mapped['lat']))+[(df_mapped['lon'][0], df_mapped['lat'][0])]], 
-                               color="yellow", weight=3, fill=True, fill_opacity=0.2).add_to(m)
+                
+                if show_polygon:
+                    folium.Polygon([[la, lo] for lo, la in list(zip(df_mapped['lon'], df_mapped['lat']))+[(df_mapped['lon'][0], df_mapped['lat'][0])]], 
+                                   color="yellow", weight=3, fill=True, fill_opacity=0.2).add_to(m)
                 
                 if show_area_label:
                     folium.Marker([df_mapped['lat'].mean(), df_mapped['lon'].mean()], 
