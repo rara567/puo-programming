@@ -6,3 +6,5 @@ shapely
 folium
 streamlit-folium
 pyproj
+streamlit-javascript
+
