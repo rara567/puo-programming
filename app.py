@@ -9,7 +9,7 @@ import os
 import math
 import json
 import matplotlib.pyplot as plt
-from matplotlib.ticker import ScalarFormatter
+from matplotlib.ticker import ScalarFormatter, MaxNLocator
 
 # ================== KONFIGURASI HALAMAN ==================
 st.set_page_config(page_title="Sistem Survey Lot - PUO", layout="wide", page_icon="📍")
@@ -51,7 +51,6 @@ def calculate_bearing_distance(p1, p2):
     bearing_deg = math.degrees(angle_rad)
     if bearing_deg < 0: bearing_deg += 360
     
-    # Sudut untuk pusingan teks dalam matplotlib
     rotation = math.degrees(math.atan2(dn, de))
     if rotation > 90: rotation -= 180
     if rotation < -90: rotation += 180
@@ -224,23 +223,27 @@ else:
                 folium_static(m, width=1100, height=550)
             
             else:
-                # ================== GRAF TEKNIKAL (IKUT GAYA USER) ==================
+                # ================== GRAF TEKNIKAL ==================
                 st.subheader("📊 Plotting Lot Teknikal")
                 fig, ax = plt.subplots(figsize=(12, 9))
                 
                 e_coords = [p[0] for p in coords_local_closed]
                 n_coords = [p[1] for p in coords_local_closed]
                 
-                # PEMBETULAN SKALA: Mengelakkan notasi saintifik (1.15e5)
+                # PEMBETULAN SKALA: Mengelakkan notasi saintifik & Menghadkan bilangan label (Teratur & Kemas)
                 ax.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
                 ax.yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
                 ax.ticklabel_format(style='plain', axis='both')
+                
+                # Menetapkan jumlah maksimum label pada paksi (e.g., 5-6 label sahaja)
+                ax.xaxis.set_major_locator(MaxNLocator(nbins=6))
+                ax.yaxis.set_major_locator(MaxNLocator(nbins=6))
 
-                # 1. Plot Poligon (Warna ungu muda dan border kuning tebal)
+                # 1. Plot Poligon
                 ax.fill(e_coords, n_coords, color='#D1C4E9', alpha=0.8, zorder=1)
                 ax.plot(e_coords, n_coords, color='#FFEB3B', linewidth=4, zorder=2)
                 
-                # 2. Plot Label Bearing & Jarak (Senget mengikut garisan)
+                # 2. Plot Label Bearing & Jarak
                 for i in range(len(df_mapped)):
                     p1, p2 = coords_local[i], coords_local_closed[i+1]
                     b, d, r = calculate_bearing_distance(p1, p2)
@@ -251,14 +254,14 @@ else:
                             fontweight='bold', ha='center', va='center', 
                             rotation=r, rotation_mode='anchor', zorder=4)
 
-                # 3. Plot Label Stesen (Bulatan Putih, Border Merah)
+                # 3. Plot Label Stesen
                 for idx, row in df_mapped.iterrows():
                     ax.text(row['E'], row['N'], str(int(row['STN'])), 
                             color='black', fontweight='bold', ha='center', va='center',
                             bbox=dict(boxstyle=f"circle,pad=0.3", fc="white", ec="red", lw=3),
                             zorder=5)
 
-                # 4. Kotak Luas (Label Hijau di tengah)
+                # 4. Kotak Luas
                 center_e, center_n = sum(e_coords[:-1])/len(e_coords[:-1]), sum(n_coords[:-1])/len(n_coords[:-1])
                 ax.text(center_e, center_n + (max(n_coords)-min(n_coords))*0.15, f"{calculated_area:.2f} m²", 
                         color='green', fontsize=area_font_size, fontweight='bold', ha='center',
