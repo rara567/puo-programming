@@ -12,25 +12,18 @@ import os
 st.set_page_config(page_title="Sistem Survey Lot - PUO", layout="wide", page_icon="📍")
 
 LOGO_PATH = "puo.png" 
-VIDEO_PATH = "video.mp4" # Pastikan fail video anda dinamakan video.mp4
-GITHUB_RAW_URL = "https://raw.githubusercontent.com/username_anda/repo_anda/main/puo.png"
+VIDEO_PATH = "video.mp4" 
 
-def get_base64_image(image_path):
-    if os.path.exists(image_path):
-        with open(image_path, "rb") as img_file:
-            return base64.b64encode(img_file.read()).decode()
+def get_base64_file(file_path):
+    if os.path.exists(file_path):
+        with open(file_path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
     return None
 
-def get_base64_video(video_path):
-    if os.path.exists(video_path):
-        with open(video_path, "rb") as video_file:
-            return base64.b64encode(video_file.read()).decode()
-    return None
+img_base64 = get_base64_file(LOGO_PATH)
+vid_base64 = get_base64_file(VIDEO_PATH)
 
-img_base64 = get_base64_image(LOGO_PATH)
-vid_base64 = get_base64_video(VIDEO_PATH)
-
-# Custom CSS termasuk Video Background untuk Header
+# ================== CUSTOM CSS (VIDEO KEKAL BERGERAK) ==================
 st.markdown(f"""
     <style>
     [data-testid="stSidebar"] {{ background-color: #1E1E1E; color: white; }}
@@ -38,15 +31,17 @@ st.markdown(f"""
     .header-container {{
         position: relative;
         width: 100%;
-        height: 200px;
+        height: 250px;
         overflow: hidden;
         border-radius: 15px;
         margin-bottom: 20px;
         border-bottom: 5px solid #d35400;
         display: flex;
         align-items: center;
+        background-color: black; /* Backup jika video loading */
     }}
 
+    /* Video kekal di latar belakang tanpa gangguan rerun */
     #video-bg {{
         position: absolute;
         top: 50%;
@@ -55,21 +50,22 @@ st.markdown(f"""
         min-height: 100%;
         width: auto;
         height: auto;
-        z-index: -1;
+        z-index: 0;
         transform: translate(-50%, -50%);
         object-fit: cover;
+        pointer-events: none;
     }}
 
     .header-overlay {{
         position: absolute;
         top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0, 0, 0, 0.4); /* Gelapkan sedikit video supaya teks jelas */
-        z-index: 0;
+        background: rgba(0, 0, 0, 0.4); 
+        z-index: 1;
     }}
 
     .header-content {{
         position: relative;
-        z-index: 1;
+        z-index: 2;
         display: flex;
         align-items: center;
         padding-left: 30px;
@@ -139,7 +135,6 @@ else:
         
         map_type = "Satalit (Hybrid)"
         if sat_toggle:
-            # DITUKAR: Satalit Standard dibuang, diganti dengan Street Map
             map_type = st.radio("Pilih Jenis Peta:", ["Satalit (Hybrid)", "Street Map (Standard)"])
         
         epsg_code = st.text_input("🔵 Kod EPSG:", value="4390")
@@ -152,23 +147,26 @@ else:
             st.rerun()
 
     # ================== KANDUNGAN UTAMA ==================
-    # Header dengan Video Background
-    logo_html = f'<img src="data:image/png;base64,{img_base64}">' if img_base64 else f'<img src="{GITHUB_RAW_URL}">'
-    video_html = f'<video autoplay loop muted playsinline id="video-bg"><source src="data:video/mp4;base64,{vid_base64}" type="video/mp4"></video>' if vid_base64 else ''
+    # Header Video (Tetapan Autoplay, Loop, Muted, Playsinline dipastikan aktif)
+    logo_src = f"data:image/png;base64,{img_base64}" if img_base64 else ""
+    video_src = f"data:video/mp4;base64,{vid_base64}" if vid_base64 else ""
 
-    st.markdown(f"""
+    header_html = f"""
         <div class="header-container">
-            {video_html}
+            <video autoplay loop muted playsinline id="video-bg">
+                <source src="{video_src}" type="video/mp4">
+            </video>
             <div class="header-overlay"></div>
             <div class="header-content">
-                <div class="header-logo-container">{logo_html}</div>
+                <div class="header-logo-container"><img src="{logo_src}"></div>
                 <div class="header-text">
-                    <h1 style="margin:0;">LOT 11487</h1>
-                    <p style="margin:0; opacity:0.9;">Politeknik Ungku Omar | Jabatan Kejuruteraan Awam</p>
+                    <h1 style="margin:0; font-size: 3rem; text-shadow: 2px 2px 5px rgba(0,0,0,0.7);">LOT 11487</h1>
+                    <p style="margin:0; font-size: 1.2rem; opacity:0.9;">Politeknik Ungku Omar | Jabatan Kejuruteraan Awam</p>
                 </div>
             </div>
         </div>
-        """, unsafe_allow_html=True)
+    """
+    st.markdown(header_html, unsafe_allow_html=True)
 
     if uploaded_file is not None:
         try:
@@ -183,7 +181,7 @@ else:
                     if coords[0] != coords[-1]: coords.append(coords[0])
                     poly = Polygon(coords)
                     
-                    fixed_area = 247.00 # Luas yang ditetapkan
+                    fixed_area = 247.00 
                     
                     with st.sidebar:
                         geojson_data = mapping(poly)
@@ -192,13 +190,13 @@ else:
                             "features": [{
                                 "type": "Feature",
                                 "geometry": geojson_data,
-                                "properties": {"Area_m2": fixed_area, "Owner": "Hzzrull"}
+                                "properties": {"Area_m2": fixed_area, "Lot": "11487"}
                             }]
                         }
                         st.download_button(
                             label="🚀 Eksport ke QGIS (GeoJSON)",
                             data=json.dumps(feature),
-                            file_name="lot_survey.geojson",
+                            file_name="lot_11487.geojson",
                             mime="application/json",
                             use_container_width=True
                         )
@@ -209,7 +207,6 @@ else:
                     m = folium.Map(location=[center_lat, center_lon], zoom_start=19, max_zoom=22)
 
                     if sat_toggle:
-                        # LOGIK PETA: 'y' untuk Hybrid, 'm' untuk Street Map (Standard Google)
                         tile_lyr = 'y' if map_type == "Satalit (Hybrid)" else 'm'
                         folium.TileLayer(
                             tiles=f'https://mt1.google.com/vt/lyrs={tile_lyr}&x={{x}}&y={{y}}&z={{z}}',
