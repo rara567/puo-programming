@@ -37,8 +37,6 @@ def calculate_bearing_distance(p1, p2):
     bearing_deg = math.degrees(angle_rad)
     if bearing_deg < 0: bearing_deg += 360
     
-    # Kira sudut rotasi untuk label (matematik)
-    # Kita tukar atan2 supaya 0 darjah adalah mendatar
     rotation = math.degrees(math.atan2(dn, de))
     if rotation > 90: rotation -= 180
     if rotation < -90: rotation += 180
@@ -60,26 +58,81 @@ st.markdown(f"""
     .header-logo-container img {{ max-width: 90%; max-height: 90%; }}
     .profile-section {{ text-align: center; padding: 20px 0; background: linear-gradient(180deg, #0097b2 0%, #005f73 100%); border-radius: 15px; margin-bottom: 20px; }}
     .profile-pic {{ width: 80px; border-radius: 50%; border: 3px solid white; }}
+    
+    /* Login Interface Styling */
+    .login-box {{
+        background: rgba(255, 255, 255, 0.05);
+        padding: 40px;
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        text-align: center;
+    }}
     </style>
     """, unsafe_allow_html=True)
 
+# ================== SISTEM LOG IN & LUPA KATA LALUAN ==================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
+if "reset_mode" not in st.session_state:
+    st.session_state.reset_mode = False
+if "stored_password" not in st.session_state:
+    st.session_state.stored_password = "ikmalkacak" # Default password
 
 if not st.session_state.logged_in:
-    cols = st.columns([1, 1.5, 1])
+    cols = st.columns([1, 1.2, 1])
+    
     with cols[1]:
-        st.write("# 🔐 Login")
-        user_id = st.text_input("ID Pengguna")
-        password = st.text_input("Kata Laluan", type="password")
-        if st.button("Log Masuk", use_container_width=True):
-            if user_id == "67" and password == "ikmalkacak":
-                st.session_state.logged_in = True
+        st.markdown('<div class="login-box">', unsafe_allow_html=True)
+        st.image("https://cdn-icons-png.flaticon.com/512/5087/5087579.png", width=100)
+        st.title("Survey Lot Rumah")
+        
+        if not st.session_state.reset_mode:
+            # --- Paparan Log In Biasa ---
+            user_id = st.text_input("👤 Masukkan ID:", placeholder="Contoh: 67")
+            password = st.text_input("🔑 Masukkan Kata Laluan:", type="password")
+            
+            if st.button("Log Masuk", use_container_width=True, type="primary"):
+                if user_id == "67" and password == st.session_state.stored_password:
+                    st.session_state.logged_in = True
+                    st.success("Log masuk berjaya!")
+                    st.rerun()
+                else:
+                    st.error("ID atau Kata Laluan Salah!")
+            
+            if st.button("❓ Lupa Kata Laluan?", variant="ghost"):
+                st.session_state.reset_mode = True
                 st.rerun()
-            else:
-                st.error("ID atau Kata Laluan Salah")
+        
+        else:
+            # --- Paparan Lupa Kata Laluan ---
+            st.subheader("Set Semula Kata Laluan")
+            verify_id = st.text_input("Sila masukkan ID anda untuk pengesahan:")
+            secret_hint = st.text_input("Siapakah nama pensyarah kegemaran anda? (Hint: Jawapan adalah 'PUO')", type="password")
+            
+            new_password = st.text_input("Masukkan Kata Laluan Baru:", type="password")
+            confirm_password = st.text_input("Sahkan Kata Laluan Baru:", type="password")
+            
+            col_reset1, col_reset2 = st.columns(2)
+            with col_reset1:
+                if st.button("Batal", use_container_width=True):
+                    st.session_state.reset_mode = False
+                    st.rerun()
+            with col_reset2:
+                if st.button("Simpan", use_container_width=True, type="primary"):
+                    if verify_id == "67" and secret_hint.lower() == "puo":
+                        if new_password == confirm_password and len(new_password) > 0:
+                            st.session_state.stored_password = new_password
+                            st.success("Kata laluan berjaya dikemaskini!")
+                            st.session_state.reset_mode = False
+                            st.rerun()
+                        else:
+                            st.error("Kata laluan tidak sepadan!")
+                    else:
+                        st.error("Maklumat pengesahan salah!")
+        st.markdown('</div>', unsafe_allow_html=True)
+
 else:
-    # ================== SIDEBAR ==================
+    # ================== SIDEBAR (Kekal Features Lama) ==================
     with st.sidebar:
         st.markdown('<div class="profile-section"><img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" class="profile-pic"><h3 style="color:white; margin-top:10px;">Hai, Hzzrull!</h3><p style="color:white; opacity:0.8;">Student</p></div>', unsafe_allow_html=True)
         uploaded_file = st.file_uploader("Upload fail CSV", type=["csv"])
@@ -88,6 +141,7 @@ else:
         epsg_code = st.text_input("🔵 Kod EPSG:", value="4390")
         
         st.markdown("---")
+        st.subheader("🖋️ Gaya Label")
         show_area_label = st.checkbox("Papar Label LUAS", value=True)
         station_circle_size = st.slider("Saiz Bulatan Stesen", 10, 40, 22)
         bearing_font_size = st.slider("Saiz Bearing/Jarak", 5, 15, 9)
@@ -98,7 +152,7 @@ else:
             st.session_state.logged_in = False
             st.rerun()
 
-    # ================== MAIN CONTENT ==================
+    # ================== MAIN CONTENT (Kekal Features Lama) ==================
     video_tag = f'<video autoplay loop muted playsinline id="video-bg"><source src="data:video/mp4;base64,{vid_base64}" type="video/mp4"></video>' if vid_base64 else ''
     logo_tag = f'<img src="data:image/png;base64,{img_base64}">' if img_base64 else ''
     st.markdown(f'<div class="header-container">{video_tag}<div class="header-overlay"></div><div class="header-content"><div class="header-logo-container">{logo_tag}</div><div><h1 style="margin:0; font-size: 35pt;">LOT 11487</h1><p style="margin:0; opacity:0.9;">Politeknik Ungku Omar | Jabatan Kejuruteraan Awam</p></div></div></div>', unsafe_allow_html=True)
@@ -130,6 +184,7 @@ else:
                 mid_w.append(((p1_gps[0]+p2_gps[0])/2, (p1_gps[1]+p2_gps[1])/2))
 
             if sat_toggle:
+                # --- Peta Satelit ---
                 m = folium.Map(location=[df_mapped['lat'].mean(), df_mapped['lon'].mean()], zoom_start=20)
                 t_type = 'y' if map_selection == "Satalit (Hybrid)" else 'm'
                 folium.TileLayer(tiles=f'https://mt1.google.com/vt/lyrs={t_type}&x={{x}}&y={{y}}&z={{z}}', attr='Google', max_zoom=22).add_to(m)
@@ -137,31 +192,20 @@ else:
                 folium.Polygon([[la, lo] for lo, la in list(zip(df_mapped['lon'], df_mapped['lat']))+[(df_mapped['lon'][0], df_mapped['lat'][0])]], 
                                color="yellow", weight=3, fill=True, fill_opacity=0.2).add_to(m)
                 
-                # Label LUAS (Tengah Lot - Tanpa Kotak)
                 if show_area_label:
                     folium.Marker([df_mapped['lat'].mean(), df_mapped['lon'].mean()], 
                                   icon=folium.DivIcon(html=f'''<div style="color: #00FF00; font-weight: 900; font-size: {area_font_size}pt; 
                                   text-shadow: 2px 2px 4px #000; white-space: nowrap; transform: translate(-50%, -50%);">
                                   {calculated_area:.2f} m²</div>''')).add_to(m)
                 
-                # Label Bearing & Jarak (Selari mengikut garisan)
                 for i, mp in enumerate(mid_w):
                     folium.Marker(mp, icon=folium.DivIcon(html=f'''
-                        <div style="
-                            color: #ffff00; 
-                            font-family: 'Arial Black', sans-serif;
-                            font-size: {bearing_font_size}pt; 
-                            font-weight: bold; 
-                            text-align: center; 
-                            text-shadow: 1px 1px 2px #000;
-                            width: 150px;
-                            transform: translate(-50%, -50%) rotate({-rotations[i]}deg);
-                        ">
-                            {bearings[i]}<br>
-                            <span style="color: white;">{distances[i]:.2f}m</span>
+                        <div style="color: #ffff00; font-family: 'Arial Black', sans-serif; font-size: {bearing_font_size}pt; 
+                            font-weight: bold; text-align: center; text-shadow: 1px 1px 2px #000; width: 150px;
+                            transform: translate(-50%, -50%) rotate({-rotations[i]}deg);">
+                            {bearings[i]}<br><span style="color: white;">{distances[i]:.2f}m</span>
                         </div>''')).add_to(m)
                 
-                # Marker Stesen (Nombor dalam Bulatan Merah)
                 for _, r in df_mapped.iterrows():
                     folium.Marker([r['lat'], r['lon']], icon=folium.DivIcon(html=f'''
                         <div style="color:white; background:red; border-radius:50%; width:{station_circle_size}px; height:{station_circle_size}px; 
@@ -172,7 +216,7 @@ else:
                 folium_static(m, width=1100, height=550)
             
             else:
-                # Mod Graf (Gaya asal yang anda suka)
+                # --- Mod Graf ---
                 fig, ax = plt.subplots(figsize=(10, 8))
                 pts = np.array(coords_local)
                 ax.set_axis_off() 
