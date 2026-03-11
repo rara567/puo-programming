@@ -3,7 +3,7 @@ import pandas as pd
 import folium
 from streamlit_folium import folium_static
 from pyproj import Transformer
-from shapely.geometry import Polygon, Point
+from shapely.geometry import Polygon
 import base64
 import os
 import math
@@ -141,14 +141,14 @@ else:
         else:
             img_html = '<img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" class="profile-pic">'
         
-        st.markdown(f'''<div class="profile-card"><div class="profile-content">{img_html}<p class="profile-name">Hai, Malfoy!</p><p class="profile-rank">Student</p></div></div>''', unsafe_allow_html=True)
+        # TUKAR SINI: Hai Hazrull !
+        st.markdown(f'''<div class="profile-card"><div class="profile-content">{img_html}<p class="profile-name">Hai Hazrull !</p><p class="profile-rank">Student</p></div></div>''', unsafe_allow_html=True)
 
         uploaded_file = st.file_uploader("Upload fail CSV", type=["csv"])
         
         st.markdown("---")
         st.subheader("🗺️ Kawalan Lapisan")
         sat_toggle = st.toggle("Peta Interaktif (Satelit)", value=True)
-        # SATU SUIS UNTUK SEMUA (Polygon, Bearing, Jarak, Luas, Nombor Bucu)
         show_all_layers = st.toggle("Papar Layer Lot (Semua)", value=False)
         
         map_selection = st.radio("Jenis Peta:", ["Satalit (Hybrid)", "Street Map (Standard)"]) if sat_toggle else "Satalit (Hybrid)"
@@ -182,7 +182,7 @@ else:
             poly_obj = Polygon(coords_local)
             calculated_area = poly_obj.area 
 
-            # GeoJSON Export (Kekal)
+            # GeoJSON Export
             features = []
             poly_gps_coords = [[lo, la] for lo, la in list(zip(df_mapped['lon'], df_mapped['lat']))]
             poly_gps_coords.append(poly_gps_coords[0])
@@ -198,17 +198,13 @@ else:
                 t_type = 'y' if map_selection == "Satalit (Hybrid)" else 'm'
                 folium.TileLayer(tiles=f'https://mt1.google.com/vt/lyrs={t_type}&x={{x}}&y={{y}}&z={{z}}', attr='Google', max_zoom=22).add_to(m)
                 
-                # JIKA SUIS UTAMA DIHIDUPKAN (ON)
                 if show_all_layers:
-                    # 1. Papar Polygon
                     folium.Polygon([[la, lo] for lo, la in list(zip(df_mapped['lon'], df_mapped['lat']))+[(df_mapped['lon'][0], df_mapped['lat'][0])]], 
                                    color="yellow", weight=3, fill=True, fill_opacity=0.2).add_to(m)
                     
-                    # 2. Papar Luas
                     folium.Marker([df_mapped['lat'].mean(), df_mapped['lon'].mean()], 
                                   icon=folium.DivIcon(html=f'''<div style="color: #00FF00; font-weight: 900; font-size: {area_font_size}pt; text-shadow: 2px 2px 4px #000; white-space: nowrap; transform: translate(-50%, -50%);">{calculated_area:.2f} m²</div>''')).add_to(m)
                     
-                    # 3. Papar Bearing & Jarak
                     for i in range(len(df_mapped)):
                         p1, p2 = coords_local[i], coords_local[i+1]
                         b, d, r = calculate_bearing_distance(p1, p2)
@@ -216,10 +212,8 @@ else:
                         p2_gps = (df_mapped.iloc[0]['lat'] if i==len(df_mapped)-1 else df_mapped.iloc[i+1]['lat'],
                                   df_mapped.iloc[0]['lon'] if i==len(df_mapped)-1 else df_mapped.iloc[i+1]['lon'])
                         mid = ((p1_gps[0]+p2_gps[0])/2, (p1_gps[1]+p2_gps[1])/2)
-                        
                         folium.Marker(mid, icon=folium.DivIcon(html=f'''<div style="color: #ffff00; font-family: 'Arial Black'; font-size: {bearing_font_size}pt; font-weight: bold; text-align: center; text-shadow: 1px 1px 2px #000; width: 150px; transform: translate(-50%, -50%) rotate({-r}deg);">{b}<br><span style="color: white;">{d:.2f}m</span></div>''')).add_to(m)
                     
-                    # 4. Papar Nombor Bucu (Stesen)
                     for _, r in df_mapped.iterrows():
                         folium.Marker([r['lat'], r['lon']], icon=folium.DivIcon(html=f'''<div style="color:white; background:red; border-radius:50%; width:{station_circle_size}px; height:{station_circle_size}px; text-align:center; font-weight:bold; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size: {station_circle_size/2}px; transform: translate(-50%, -50%);">{int(r["STN"])}</div>''')).add_to(m)
                 
