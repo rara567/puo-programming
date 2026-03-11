@@ -10,12 +10,26 @@ import math
 import json
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter, MaxNLocator
+# Feature Baru: Local Storage
+from streamlit_javascript import st_javascript
 
 # ================== KONFIGURASI HALAMAN ==================
 st.set_page_config(page_title="Sistem Survey Lot - PUO", layout="wide", page_icon="📍")
 
 LOGO_PATH = "puo.png" 
 VIDEO_PATH = "video.mp4" 
+
+# --- FUNGSI LOCAL STORAGE (PROPS) ---
+def get_stored_password():
+    # Mengambil password dari localStorage browser
+    stored = st_javascript("localStorage.getItem('survey_password');")
+    if stored is None or stored == "":
+        return "ikmalkacak" # Default jika belum pernah tukar
+    return stored
+
+def set_stored_password(new_pw):
+    # Menyimpan password ke localStorage browser
+    st_javascript(f"localStorage.setItem('survey_password', '{new_pw}');")
 
 def get_base64_profile():
     possible_names = ["me", "me.jpeg", "me.jpg"]
@@ -50,11 +64,9 @@ def calculate_bearing_distance(p1, p2):
     angle_rad = math.atan2(de, dn)
     bearing_deg = math.degrees(angle_rad)
     if bearing_deg < 0: bearing_deg += 360
-    
     rotation = math.degrees(math.atan2(dn, de))
     if rotation > 90: rotation -= 180
     if rotation < -90: rotation += 180
-    
     return format_bearing(bearing_deg), distance, rotation
 
 # Load fail media
@@ -72,36 +84,24 @@ st.markdown(f"""
     .header-content {{ position: relative; z-index: 2; display: flex; align-items: center; padding-left: 30px; color: white; }}
     .header-logo-container {{ background-color: white; padding: 5px; border-radius: 50%; margin-right: 20px; width: 100px; height: 100px; display: flex; justify-content: center; align-items: center; overflow: hidden; }}
     .header-logo-container img {{ max-width: 90%; max-height: 90%; }}
-
-    .profile-card {{
-        position: relative;
-        text-align: center;
-        padding: 30px 10px;
-        border-radius: 20px;
-        overflow: hidden;
-        margin-bottom: 20px;
-        background-image: url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=1000&auto=format&fit=crop');
-        background-size: cover;
-        background-position: center;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-    }}
+    .profile-card {{ position: relative; text-align: center; padding: 30px 10px; border-radius: 20px; overflow: hidden; margin-bottom: 20px; background-image: url('https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=1000&auto=format&fit=crop'); background-size: cover; background-position: center; border: 1px solid rgba(255, 255, 255, 0.2); }}
     .profile-card::before {{ content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.3); z-index: 1; }}
     .profile-content {{ position: relative; z-index: 2; }}
     .profile-pic {{ width: 100px; height: 100px; border-radius: 50%; border: 3px solid white; object-fit: cover; margin-bottom: 10px; box-shadow: 0px 4px 15px rgba(0,0,0,0.5); }}
     .profile-name {{ color: white; font-weight: bold; font-size: 1.2rem; margin: 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }}
     .profile-rank {{ color: #00d2ff; font-weight: bold; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; text-shadow: 1px 1px 2px rgba(0,0,0,0.8); }}
-    
     .login-box {{ background: rgba(255, 255, 255, 0.05); padding: 40px; border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.1); text-align: center; }}
     </style>
     """, unsafe_allow_html=True)
 
 # ================== SISTEM LOG IN ==================
+# Ambil password terkini dari browser
+current_password = get_stored_password()
+
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "reset_mode" not in st.session_state:
     st.session_state.reset_mode = False
-if "stored_password" not in st.session_state:
-    st.session_state.stored_password = "ikmalkacak" 
 
 if not st.session_state.logged_in:
     cols = st.columns([1, 1.2, 1])
@@ -112,13 +112,18 @@ if not st.session_state.logged_in:
         
         if not st.session_state.reset_mode:
             user_id = st.text_input("👤 Masukkan ID:", placeholder="Contoh: 67")
-            password = st.text_input("🔑 Masukkan Kata Laluan:", type="password")
+            password_input = st.text_input("🔑 Masukkan Kata Laluan:", type="password")
+            
             if st.button("Log Masuk", use_container_width=True, type="primary"):
-                if user_id == "67" and password == st.session_state.stored_password:
+                # Berhenti jika password belum sempat di-load dari JS
+                if current_password is None:
+                    st.warning("Menghubungi storan pelayar... Sila klik sekali lagi.")
+                elif user_id == "67" and password_input == current_password:
                     st.session_state.logged_in = True
                     st.rerun()
                 else:
                     st.error("ID atau Kata Laluan Salah!")
+            
             if st.button("❓ Lupa Kata Laluan?"):
                 st.session_state.reset_mode = True
                 st.rerun()
@@ -128,13 +133,18 @@ if not st.session_state.logged_in:
             secret_hint = st.text_input("Siapakah nama pensyarah kegemaran anda? (Hint: Jawapan adalah 'PUO')", type="password")
             new_password = st.text_input("Masukkan Kata Laluan Baru:", type="password")
             confirm_password = st.text_input("Sahkan Kata Laluan Baru:", type="password")
+            
             if st.button("Simpan", use_container_width=True, type="primary"):
                 if verify_id == "67" and secret_hint.lower() == "puo":
                     if new_password == confirm_password and len(new_password) > 0:
-                        st.session_state.stored_password = new_password
-                        st.success("Berjaya!")
+                        set_stored_password(new_password) # Simpan ke LocalStorage
+                        st.success("Kata laluan disimpan secara kekal!")
                         st.session_state.reset_mode = False
                         st.rerun()
+                    else:
+                        st.error("Sila pastikan kata laluan sama.")
+                else:
+                    st.error("Maklumat pengesahan salah.")
         st.markdown('</div>', unsafe_allow_html=True)
 
 else:
@@ -197,7 +207,6 @@ else:
             st.sidebar.download_button(label="📥 Eksport ke QGIS (GeoJSON)", data=geojson_str, file_name="lot.geojson", mime="application/json", use_container_width=True)
 
             if sat_toggle:
-                # Paparan Peta Folium
                 m = folium.Map(location=[df_mapped['lat'].mean(), df_mapped['lon'].mean()], zoom_start=20)
                 t_type = 'y' if map_selection == "Satalit (Hybrid)" else 'm'
                 folium.TileLayer(tiles=f'https://mt1.google.com/vt/lyrs={t_type}&x={{x}}&y={{y}}&z={{z}}', attr='Google', max_zoom=22).add_to(m)
@@ -223,58 +232,31 @@ else:
                 folium_static(m, width=1100, height=550)
             
             else:
-                # ================== GRAF TEKNIKAL ==================
                 st.subheader("📊 Plotting Lot Teknikal")
                 fig, ax = plt.subplots(figsize=(12, 9))
-                
                 e_coords = [p[0] for p in coords_local_closed]
                 n_coords = [p[1] for p in coords_local_closed]
-                
-                # PEMBETULAN SKALA: Mengelakkan notasi saintifik & Menghadkan bilangan label (Teratur & Kemas)
                 ax.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
                 ax.yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
                 ax.ticklabel_format(style='plain', axis='both')
-                
-                # Menetapkan jumlah maksimum label pada paksi (e.g., 5-6 label sahaja)
                 ax.xaxis.set_major_locator(MaxNLocator(nbins=6))
                 ax.yaxis.set_major_locator(MaxNLocator(nbins=6))
-
-                # 1. Plot Poligon
                 ax.fill(e_coords, n_coords, color='#D1C4E9', alpha=0.8, zorder=1)
                 ax.plot(e_coords, n_coords, color='#FFEB3B', linewidth=4, zorder=2)
-                
-                # 2. Plot Label Bearing & Jarak
                 for i in range(len(df_mapped)):
                     p1, p2 = coords_local[i], coords_local_closed[i+1]
                     b, d, r = calculate_bearing_distance(p1, p2)
                     mid_e, mid_n = (p1[0]+p2[0])/2, (p1[1]+p2[1])/2
-                    
-                    ax.text(mid_e, mid_n, f"{b}\n{d:.2f}m", 
-                            color='brown', fontsize=bearing_font_size+1, 
-                            fontweight='bold', ha='center', va='center', 
-                            rotation=r, rotation_mode='anchor', zorder=4)
-
-                # 3. Plot Label Stesen
+                    ax.text(mid_e, mid_n, f"{b}\n{d:.2f}m", color='brown', fontsize=bearing_font_size+1, fontweight='bold', ha='center', va='center', rotation=r, rotation_mode='anchor', zorder=4)
                 for idx, row in df_mapped.iterrows():
-                    ax.text(row['E'], row['N'], str(int(row['STN'])), 
-                            color='black', fontweight='bold', ha='center', va='center',
-                            bbox=dict(boxstyle=f"circle,pad=0.3", fc="white", ec="red", lw=3),
-                            zorder=5)
-
-                # 4. Kotak Luas
+                    ax.text(row['E'], row['N'], str(int(row['STN'])), color='black', fontweight='bold', ha='center', va='center', bbox=dict(boxstyle=f"circle,pad=0.3", fc="white", ec="red", lw=3), zorder=5)
                 center_e, center_n = sum(e_coords[:-1])/len(e_coords[:-1]), sum(n_coords[:-1])/len(n_coords[:-1])
-                ax.text(center_e, center_n + (max(n_coords)-min(n_coords))*0.15, f"{calculated_area:.2f} m²", 
-                        color='green', fontsize=area_font_size, fontweight='bold', ha='center',
-                        bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="green", lw=2),
-                        zorder=6)
-
-                # Kemasan Axis
+                ax.text(center_e, center_n + (max(n_coords)-min(n_coords))*0.15, f"{calculated_area:.2f} m²", color='green', fontsize=area_font_size, fontweight='bold', ha='center', bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="green", lw=2), zorder=6)
                 ax.set_aspect('equal', adjustable='box')
                 ax.grid(True, linestyle='--', alpha=0.3, color='grey')
                 ax.set_facecolor('white')
                 ax.set_xlabel("Easting (m)", fontweight='bold')
                 ax.set_ylabel("Northing (m)", fontweight='bold')
-
                 st.pyplot(fig)
 
             st.dataframe(df_mapped[['STN', 'E', 'N', 'lat', 'lon']].style.format(precision=3), use_container_width=True)
