@@ -192,7 +192,8 @@ else:
         st.markdown("---")
         st.subheader("🗺️ Kawalan Lapisan")
         sat_toggle = st.toggle("Peta Interaktif (Satelit)", value=True)
-        show_polygon = st.toggle("Papar Polygon Lot", value=True)
+        show_polygon = st.toggle("Papar Polygon Lot", value=False) # Diubah ke False
+        show_bearing_dist = st.toggle("Papar Bearing & Jarak", value=False) # Ciri Baru (Default False)
         
         map_selection = st.radio("Jenis Peta:", ["Satalit (Hybrid)", "Street Map (Standard)"]) if sat_toggle else "Satalit (Hybrid)"
         epsg_code = st.text_input("🔵 Kod EPSG:", value="4390")
@@ -228,7 +229,6 @@ else:
 
             # GeoJSON Export Logic
             features = []
-            # Add Polygon
             poly_gps_coords = [[lo, la] for lo, la in list(zip(df_mapped['lon'], df_mapped['lat']))]
             poly_gps_coords.append(poly_gps_coords[0])
             features.append({
@@ -236,7 +236,6 @@ else:
                 "properties": {"name": "Lot Polygon", "area_m2": round(calculated_area, 2)},
                 "geometry": {"type": "Polygon", "coordinates": [poly_gps_coords]}
             })
-            # Add Points (Batu Sempadan)
             for _, r in df_mapped.iterrows():
                 features.append({
                     "type": "Feature",
@@ -247,7 +246,6 @@ else:
             geojson_data = {"type": "FeatureCollection", "features": features}
             geojson_str = json.dumps(geojson_data, indent=2)
 
-            # Download Button
             st.sidebar.download_button(
                 label="📥 Eksport ke QGIS (GeoJSON)",
                 data=geojson_str,
@@ -281,13 +279,15 @@ else:
                                   text-shadow: 2px 2px 4px #000; white-space: nowrap; transform: translate(-50%, -50%);">
                                   {calculated_area:.2f} m²</div>''')).add_to(m)
                 
-                for i, mp in enumerate(mid_w):
-                    folium.Marker(mp, icon=folium.DivIcon(html=f'''
-                        <div style="color: #ffff00; font-family: 'Arial Black', sans-serif; font-size: {bearing_font_size}pt; 
-                            font-weight: bold; text-align: center; text-shadow: 1px 1px 2px #000; width: 150px;
-                            transform: translate(-50%, -50%) rotate({-rotations[i]}deg);">
-                            {bearings[i]}<br><span style="color: white;">{distances[i]:.2f}m</span>
-                        </div>''')).add_to(m)
+                # Logik kawalan paparan Bearing & Jarak
+                if show_bearing_dist:
+                    for i, mp in enumerate(mid_w):
+                        folium.Marker(mp, icon=folium.DivIcon(html=f'''
+                            <div style="color: #ffff00; font-family: 'Arial Black', sans-serif; font-size: {bearing_font_size}pt; 
+                                font-weight: bold; text-align: center; text-shadow: 1px 1px 2px #000; width: 150px;
+                                transform: translate(-50%, -50%) rotate({-rotations[i]}deg);">
+                                {bearings[i]}<br><span style="color: white;">{distances[i]:.2f}m</span>
+                            </div>''')).add_to(m)
                 
                 for _, r in df_mapped.iterrows():
                     folium.Marker([r['lat'], r['lon']], icon=folium.DivIcon(html=f'''
