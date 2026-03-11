@@ -141,8 +141,8 @@ else:
         else:
             img_html = '<img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" class="profile-pic">'
         
-        # TUKAR SINI: Hai Hazrull !
-        st.markdown(f'''<div class="profile-card"><div class="profile-content">{img_html}<p class="profile-name">Hai Hazrull !</p><p class="profile-rank">Student</p></div></div>''', unsafe_allow_html=True)
+        # BAHAGIAN YANG DIKEMASKINI:
+        st.markdown(f'''<div class="profile-card"><div class="profile-content">{img_html}<p class="profile-name">Hi Hazrul</p><p class="profile-rank">Student</p></div></div>''', unsafe_allow_html=True)
 
         uploaded_file = st.file_uploader("Upload fail CSV", type=["csv"])
         
