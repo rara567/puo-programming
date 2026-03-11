@@ -76,7 +76,7 @@ if "logged_in" not in st.session_state:
 if "reset_mode" not in st.session_state:
     st.session_state.reset_mode = False
 if "stored_password" not in st.session_state:
-    st.session_state.stored_password = "ikmalkacak" # Default password
+    st.session_state.stored_password = "ikmalkacak" 
 
 if not st.session_state.logged_in:
     cols = st.columns([1, 1.2, 1])
@@ -87,26 +87,26 @@ if not st.session_state.logged_in:
         st.title("Survey Lot Rumah")
         
         if not st.session_state.reset_mode:
-            # --- Paparan Log In Biasa ---
+            # --- Paparan Log In ---
             user_id = st.text_input("👤 Masukkan ID:", placeholder="Contoh: 67")
             password = st.text_input("🔑 Masukkan Kata Laluan:", type="password")
             
             if st.button("Log Masuk", use_container_width=True, type="primary"):
                 if user_id == "67" and password == st.session_state.stored_password:
                     st.session_state.logged_in = True
-                    st.success("Log masuk berjaya!")
                     st.rerun()
                 else:
                     st.error("ID atau Kata Laluan Salah!")
             
-            if st.button("❓ Lupa Kata Laluan?", variant="ghost"):
+            # Guna st.button biasa tanpa variant untuk elak ralat
+            if st.button("❓ Lupa Kata Laluan?"):
                 st.session_state.reset_mode = True
                 st.rerun()
         
         else:
             # --- Paparan Lupa Kata Laluan ---
             st.subheader("Set Semula Kata Laluan")
-            verify_id = st.text_input("Sila masukkan ID anda untuk pengesahan:")
+            verify_id = st.text_input("Sila masukkan ID anda:")
             secret_hint = st.text_input("Siapakah nama pensyarah kegemaran anda? (Hint: Jawapan adalah 'PUO')", type="password")
             
             new_password = st.text_input("Masukkan Kata Laluan Baru:", type="password")
@@ -122,7 +122,7 @@ if not st.session_state.logged_in:
                     if verify_id == "67" and secret_hint.lower() == "puo":
                         if new_password == confirm_password and len(new_password) > 0:
                             st.session_state.stored_password = new_password
-                            st.success("Kata laluan berjaya dikemaskini!")
+                            st.success("Berjaya dikemaskini!")
                             st.session_state.reset_mode = False
                             st.rerun()
                         else:
@@ -132,7 +132,7 @@ if not st.session_state.logged_in:
         st.markdown('</div>', unsafe_allow_html=True)
 
 else:
-    # ================== SIDEBAR (Kekal Features Lama) ==================
+    # ================== SIDEBAR ==================
     with st.sidebar:
         st.markdown('<div class="profile-section"><img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" class="profile-pic"><h3 style="color:white; margin-top:10px;">Hai, Hzzrull!</h3><p style="color:white; opacity:0.8;">Student</p></div>', unsafe_allow_html=True)
         uploaded_file = st.file_uploader("Upload fail CSV", type=["csv"])
@@ -152,7 +152,7 @@ else:
             st.session_state.logged_in = False
             st.rerun()
 
-    # ================== MAIN CONTENT (Kekal Features Lama) ==================
+    # ================== MAIN CONTENT ==================
     video_tag = f'<video autoplay loop muted playsinline id="video-bg"><source src="data:video/mp4;base64,{vid_base64}" type="video/mp4"></video>' if vid_base64 else ''
     logo_tag = f'<img src="data:image/png;base64,{img_base64}">' if img_base64 else ''
     st.markdown(f'<div class="header-container">{video_tag}<div class="header-overlay"></div><div class="header-content"><div class="header-logo-container">{logo_tag}</div><div><h1 style="margin:0; font-size: 35pt;">LOT 11487</h1><p style="margin:0; opacity:0.9;">Politeknik Ungku Omar | Jabatan Kejuruteraan Awam</p></div></div></div>', unsafe_allow_html=True)
@@ -184,7 +184,6 @@ else:
                 mid_w.append(((p1_gps[0]+p2_gps[0])/2, (p1_gps[1]+p2_gps[1])/2))
 
             if sat_toggle:
-                # --- Peta Satelit ---
                 m = folium.Map(location=[df_mapped['lat'].mean(), df_mapped['lon'].mean()], zoom_start=20)
                 t_type = 'y' if map_selection == "Satalit (Hybrid)" else 'm'
                 folium.TileLayer(tiles=f'https://mt1.google.com/vt/lyrs={t_type}&x={{x}}&y={{y}}&z={{z}}', attr='Google', max_zoom=22).add_to(m)
@@ -210,13 +209,12 @@ else:
                     folium.Marker([r['lat'], r['lon']], icon=folium.DivIcon(html=f'''
                         <div style="color:white; background:red; border-radius:50%; width:{station_circle_size}px; height:{station_circle_size}px; 
                         text-align:center; font-weight:bold; border:2px solid white; display:flex; align-items:center; justify-content:center;
-                        font-size: {station_circle_size/2}px; transform: translate(-50%, -50%); shadow: 2px 2px 5px #000;">
+                        font-size: {station_circle_size/2}px; transform: translate(-50%, -50%);">
                         {int(r["STN"])}</div>''')).add_to(m)
                 
                 folium_static(m, width=1100, height=550)
             
             else:
-                # --- Mod Graf ---
                 fig, ax = plt.subplots(figsize=(10, 8))
                 pts = np.array(coords_local)
                 ax.set_axis_off() 
