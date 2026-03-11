@@ -36,7 +36,14 @@ def calculate_bearing_distance(p1, p2):
     angle_rad = math.atan2(de, dn)
     bearing_deg = math.degrees(angle_rad)
     if bearing_deg < 0: bearing_deg += 360
-    return format_bearing(bearing_deg), distance
+    
+    # Kira sudut rotasi untuk label (matematik)
+    # Kita tukar atan2 supaya 0 darjah adalah mendatar
+    rotation = math.degrees(math.atan2(dn, de))
+    if rotation > 90: rotation -= 180
+    if rotation < -90: rotation += 180
+        
+    return format_bearing(bearing_deg), distance, rotation
 
 img_base64 = get_base64_file(LOGO_PATH)
 vid_base64 = get_base64_file(VIDEO_PATH)
@@ -83,8 +90,8 @@ else:
         st.markdown("---")
         show_area_label = st.checkbox("Papar Label LUAS", value=True)
         station_circle_size = st.slider("Saiz Bulatan Stesen", 10, 40, 22)
-        bearing_font_size = st.slider("Saiz Bearing/Jarak", 5, 12, 8)
-        area_font_size = st.slider("Saiz Tulisan LUAS", 10, 20, 14)
+        bearing_font_size = st.slider("Saiz Bearing/Jarak", 5, 15, 9)
+        area_font_size = st.slider("Saiz Tulisan LUAS", 10, 30, 20)
         station_label_offset = st.slider("Jarak Label Stesen ke Luar", 0.1, 3.0, 1.5, 0.1)
 
         if st.button("🚪 Log Keluar", use_container_width=True):
@@ -110,86 +117,76 @@ else:
             poly_obj = Polygon(coords_local)
             calculated_area = poly_obj.area 
 
-            bearings, distances, mid_l, mid_w = [], [], [], []
+            bearings, distances, rotations, mid_l, mid_w = [], [], [], [], []
             for i in range(len(df_mapped)):
                 p1, p2 = coords_local[i], coords_local[i+1]
-                b, d = calculate_bearing_distance(p1, p2)
-                bearings.append(b); distances.append(d)
+                b, d, r = calculate_bearing_distance(p1, p2)
+                bearings.append(b); distances.append(d); rotations.append(r)
                 mid_l.append(((p1[0]+p2[0])/2, (p1[1]+p2[1])/2))
                 
-                # Koordinat GPS untuk label Folium
                 p1_gps = (df_mapped.iloc[i]['lat'], df_mapped.iloc[i]['lon'])
                 p2_gps = (df_mapped.iloc[0]['lat'] if i==len(df_mapped)-1 else df_mapped.iloc[i+1]['lat'],
                           df_mapped.iloc[0]['lon'] if i==len(df_mapped)-1 else df_mapped.iloc[i+1]['lon'])
                 mid_w.append(((p1_gps[0]+p2_gps[0])/2, (p1_gps[1]+p2_gps[1])/2))
 
             if sat_toggle:
-                # ------------------ KEMASKINI LABEL SATELIT ------------------
                 m = folium.Map(location=[df_mapped['lat'].mean(), df_mapped['lon'].mean()], zoom_start=20)
                 t_type = 'y' if map_selection == "Satalit (Hybrid)" else 'm'
                 folium.TileLayer(tiles=f'https://mt1.google.com/vt/lyrs={t_type}&x={{x}}&y={{y}}&z={{z}}', attr='Google', max_zoom=22).add_to(m)
                 
-                # Plot Sempadan Lot
                 folium.Polygon([[la, lo] for lo, la in list(zip(df_mapped['lon'], df_mapped['lat']))+[(df_mapped['lon'][0], df_mapped['lat'][0])]], 
                                color="yellow", weight=3, fill=True, fill_opacity=0.2).add_to(m)
                 
-                # Label LUAS yang dikemaskan
+                # Label LUAS (Tengah Lot - Tanpa Kotak)
                 if show_area_label:
                     folium.Marker([df_mapped['lat'].mean(), df_mapped['lon'].mean()], 
-                                  icon=folium.DivIcon(html=f'''<div style="color: #2ecc71; font-weight: bold; font-size: {area_font_size}pt; 
-                                  background: white; padding: 3px 8px; border: 2px solid #2ecc71; border-radius: 5px; 
-                                  white-space: nowrap; transform: translate(-50%, -50%); shadow: 2px 2px 5px rgba(0,0,0,0.3);">
+                                  icon=folium.DivIcon(html=f'''<div style="color: #00FF00; font-weight: 900; font-size: {area_font_size}pt; 
+                                  text-shadow: 2px 2px 4px #000; white-space: nowrap; transform: translate(-50%, -50%);">
                                   {calculated_area:.2f} m²</div>''')).add_to(m)
                 
-                # Label Bearing & Jarak yang dikemaskan
+                # Label Bearing & Jarak (Selari mengikut garisan)
                 for i, mp in enumerate(mid_w):
                     folium.Marker(mp, icon=folium.DivIcon(html=f'''
                         <div style="
-                            background: rgba(0, 0, 0, 0.6); 
                             color: #ffff00; 
-                            font-family: Arial, sans-serif;
+                            font-family: 'Arial Black', sans-serif;
                             font-size: {bearing_font_size}pt; 
                             font-weight: bold; 
                             text-align: center; 
-                            padding: 2px 4px; 
-                            border-radius: 4px; 
-                            width: 120px;
-                            transform: translate(-50%, -50%);
-                            border: 0.5px solid rgba(255,255,255,0.3);
+                            text-shadow: 1px 1px 2px #000;
+                            width: 150px;
+                            transform: translate(-50%, -50%) rotate({-rotations[i]}deg);
                         ">
                             {bearings[i]}<br>
                             <span style="color: white;">{distances[i]:.2f}m</span>
                         </div>''')).add_to(m)
                 
-                # Marker Stesen
+                # Marker Stesen (Nombor dalam Bulatan Merah)
                 for _, r in df_mapped.iterrows():
                     folium.Marker([r['lat'], r['lon']], icon=folium.DivIcon(html=f'''
                         <div style="color:white; background:red; border-radius:50%; width:{station_circle_size}px; height:{station_circle_size}px; 
                         text-align:center; font-weight:bold; border:2px solid white; display:flex; align-items:center; justify-content:center;
-                        font-size: {station_circle_size/2}px; transform: translate(-50%, -50%);">
+                        font-size: {station_circle_size/2}px; transform: translate(-50%, -50%); shadow: 2px 2px 5px #000;">
                         {int(r["STN"])}</div>''')).add_to(m)
                 
                 folium_static(m, width=1100, height=550)
             
             else:
-                # ------------------ MOD GRAF (TIADA PERUBAHAN) ------------------
+                # Mod Graf (Gaya asal yang anda suka)
                 fig, ax = plt.subplots(figsize=(10, 8))
                 pts = np.array(coords_local)
                 ax.set_axis_off() 
-                ax.grid(False)
                 ax.add_patch(MatplotlibPolygon(pts, facecolor='#D8BFD8', alpha=0.8, zorder=1))
                 ax.plot(pts[:,0], pts[:,1], color='yellow', linewidth=3, zorder=2)
 
                 for i, ml in enumerate(mid_l):
-                    dx, dy = coords_local[i+1][0]-coords_local[i][0], coords_local[i+1][1]-coords_local[i][1]
-                    rot = math.degrees(math.atan2(dy, dx))
-                    if rot > 90 or rot < -90: rot += 180
                     ax.text(ml[0], ml[1], f"{bearings[i]}\n{distances[i]:.2f}m", 
-                            color='brown', fontsize=bearing_font_size+4, fontweight='bold', ha='center', va='center', rotation=rot, zorder=4)
+                            color='brown', fontsize=bearing_font_size+3, fontweight='bold', ha='center', va='center', 
+                            rotation=rotations[i], zorder=4)
 
                 if show_area_label:
                     cx, cy = poly_obj.centroid.x, poly_obj.centroid.y
-                    ax.text(cx, cy, f"{calculated_area:.2f} m²", color='green', fontsize=area_font_size+2, 
+                    ax.text(cx, cy, f"{calculated_area:.2f} m²", color='green', fontsize=area_font_size, 
                             fontweight='bold', ha='center', zorder=5, bbox=dict(facecolor='white', edgecolor='green', boxstyle='round,pad=0.3'))
                 
                 for _, r in df_mapped.iterrows():
