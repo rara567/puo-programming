@@ -9,6 +9,7 @@ import os
 import math
 import json
 import matplotlib.pyplot as plt
+from matplotlib.ticker import ScalarFormatter
 
 # ================== KONFIGURASI HALAMAN ==================
 st.set_page_config(page_title="Sistem Survey Lot - PUO", layout="wide", page_icon="📍")
@@ -50,7 +51,7 @@ def calculate_bearing_distance(p1, p2):
     bearing_deg = math.degrees(angle_rad)
     if bearing_deg < 0: bearing_deg += 360
     
-    # Untuk pusingan text di Matplotlib
+    # Sudut untuk pusingan teks dalam matplotlib
     rotation = math.degrees(math.atan2(dn, de))
     if rotation > 90: rotation -= 180
     if rotation < -90: rotation += 180
@@ -197,6 +198,7 @@ else:
             st.sidebar.download_button(label="📥 Eksport ke QGIS (GeoJSON)", data=geojson_str, file_name="lot.geojson", mime="application/json", use_container_width=True)
 
             if sat_toggle:
+                # Paparan Peta Folium
                 m = folium.Map(location=[df_mapped['lat'].mean(), df_mapped['lon'].mean()], zoom_start=20)
                 t_type = 'y' if map_selection == "Satalit (Hybrid)" else 'm'
                 folium.TileLayer(tiles=f'https://mt1.google.com/vt/lyrs={t_type}&x={{x}}&y={{y}}&z={{z}}', attr='Google', max_zoom=22).add_to(m)
@@ -222,18 +224,23 @@ else:
                 folium_static(m, width=1100, height=550)
             
             else:
-                # ================== GRAF TEKNIKAL (IKUT IMEJ USER) ==================
+                # ================== GRAF TEKNIKAL (IKUT GAYA USER) ==================
                 st.subheader("📊 Plotting Lot Teknikal")
                 fig, ax = plt.subplots(figsize=(12, 9))
                 
                 e_coords = [p[0] for p in coords_local_closed]
                 n_coords = [p[1] for p in coords_local_closed]
                 
+                # PEMBETULAN SKALA: Mengelakkan notasi saintifik (1.15e5)
+                ax.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
+                ax.yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
+                ax.ticklabel_format(style='plain', axis='both')
+
                 # 1. Plot Poligon (Warna ungu muda dan border kuning tebal)
                 ax.fill(e_coords, n_coords, color='#D1C4E9', alpha=0.8, zorder=1)
                 ax.plot(e_coords, n_coords, color='#FFEB3B', linewidth=4, zorder=2)
                 
-                # 2. Plot Label Bearing & Jarak (Senget ikut garisan)
+                # 2. Plot Label Bearing & Jarak (Senget mengikut garisan)
                 for i in range(len(df_mapped)):
                     p1, p2 = coords_local[i], coords_local_closed[i+1]
                     b, d, r = calculate_bearing_distance(p1, p2)
@@ -253,7 +260,7 @@ else:
 
                 # 4. Kotak Luas (Label Hijau di tengah)
                 center_e, center_n = sum(e_coords[:-1])/len(e_coords[:-1]), sum(n_coords[:-1])/len(n_coords[:-1])
-                ax.text(center_e, center_n + (max(n_coords)-min(n_coords))*0.2, f"{calculated_area:.2f} m²", 
+                ax.text(center_e, center_n + (max(n_coords)-min(n_coords))*0.15, f"{calculated_area:.2f} m²", 
                         color='green', fontsize=area_font_size, fontweight='bold', ha='center',
                         bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="green", lw=2),
                         zorder=6)
@@ -262,10 +269,8 @@ else:
                 ax.set_aspect('equal', adjustable='box')
                 ax.grid(True, linestyle='--', alpha=0.3, color='grey')
                 ax.set_facecolor('white')
-                # Hilangkan border kotak graf jika mahu lebih clean
-                for spine in ax.spines.values():
-                    spine.set_visible(True)
-                    spine.set_color('#CCCCCC')
+                ax.set_xlabel("Easting (m)", fontweight='bold')
+                ax.set_ylabel("Northing (m)", fontweight='bold')
 
                 st.pyplot(fig)
 
