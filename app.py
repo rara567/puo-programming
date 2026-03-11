@@ -8,6 +8,7 @@ import base64
 import os
 import math
 import json
+import matplotlib.pyplot as plt
 
 # ================== KONFIGURASI HALAMAN ==================
 st.set_page_config(page_title="Sistem Survey Lot - PUO", layout="wide", page_icon="📍")
@@ -48,9 +49,12 @@ def calculate_bearing_distance(p1, p2):
     angle_rad = math.atan2(de, dn)
     bearing_deg = math.degrees(angle_rad)
     if bearing_deg < 0: bearing_deg += 360
+    
+    # Untuk pusingan text di Matplotlib
     rotation = math.degrees(math.atan2(dn, de))
     if rotation > 90: rotation -= 180
     if rotation < -90: rotation += 180
+    
     return format_bearing(bearing_deg), distance, rotation
 
 # Load fail media
@@ -141,7 +145,6 @@ else:
         else:
             img_html = '<img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" class="profile-pic">'
         
-        # BAHAGIAN YANG DIKEMASKINI:
         st.markdown(f'''<div class="profile-card"><div class="profile-content">{img_html}<p class="profile-name">Hi Hazrul</p><p class="profile-rank">Student</p></div></div>''', unsafe_allow_html=True)
 
         uploaded_file = st.file_uploader("Upload fail CSV", type=["csv"])
@@ -151,14 +154,14 @@ else:
         sat_toggle = st.toggle("Peta Interaktif (Satelit)", value=True)
         show_all_layers = st.toggle("Papar Layer Lot (Semua)", value=False)
         
-        map_selection = st.radio("Jenis Peta:", ["Satalit (Hybrid)", "Street Map (Standard)"]) if sat_toggle else "Satalit (Hybrid)"
+        map_selection = st.radio("Jenis Peta:", ["Satalit (Hybrid)", "Street Map (Standard)"]) if sat_toggle else "N/A"
         epsg_code = st.text_input("🔵 Kod EPSG:", value="4390")
         
         st.markdown("---")
         st.subheader("🖋️ Gaya Label")
         station_circle_size = st.slider("Saiz Bulatan Stesen", 10, 40, 22)
         bearing_font_size = st.slider("Saiz Bearing/Jarak", 5, 15, 9)
-        area_font_size = st.slider("Saiz Tulisan LUAS", 10, 30, 20)
+        area_font_size = st.slider("Saiz Tulisan LUAS", 10, 40, 20)
 
         if st.button("🚪 Log Keluar", use_container_width=True):
             st.session_state.logged_in = False
@@ -178,7 +181,7 @@ else:
             df_mapped = df.assign(lat=lat, lon=lon)
             
             coords_local = list(zip(df_mapped['E'], df_mapped['N']))
-            coords_local.append(coords_local[0])
+            coords_local_closed = coords_local + [coords_local[0]]
             poly_obj = Polygon(coords_local)
             calculated_area = poly_obj.area 
 
@@ -206,7 +209,7 @@ else:
                                   icon=folium.DivIcon(html=f'''<div style="color: #00FF00; font-weight: 900; font-size: {area_font_size}pt; text-shadow: 2px 2px 4px #000; white-space: nowrap; transform: translate(-50%, -50%);">{calculated_area:.2f} m²</div>''')).add_to(m)
                     
                     for i in range(len(df_mapped)):
-                        p1, p2 = coords_local[i], coords_local[i+1]
+                        p1, p2 = coords_local[i], coords_local_closed[i+1]
                         b, d, r = calculate_bearing_distance(p1, p2)
                         p1_gps = (df_mapped.iloc[i]['lat'], df_mapped.iloc[i]['lon'])
                         p2_gps = (df_mapped.iloc[0]['lat'] if i==len(df_mapped)-1 else df_mapped.iloc[i+1]['lat'],
@@ -216,9 +219,56 @@ else:
                     
                     for _, r in df_mapped.iterrows():
                         folium.Marker([r['lat'], r['lon']], icon=folium.DivIcon(html=f'''<div style="color:white; background:red; border-radius:50%; width:{station_circle_size}px; height:{station_circle_size}px; text-align:center; font-weight:bold; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size: {station_circle_size/2}px; transform: translate(-50%, -50%);">{int(r["STN"])}</div>''')).add_to(m)
-                
                 folium_static(m, width=1100, height=550)
             
+            else:
+                # ================== GRAF TEKNIKAL (IKUT IMEJ USER) ==================
+                st.subheader("📊 Plotting Lot Teknikal")
+                fig, ax = plt.subplots(figsize=(12, 9))
+                
+                e_coords = [p[0] for p in coords_local_closed]
+                n_coords = [p[1] for p in coords_local_closed]
+                
+                # 1. Plot Poligon (Warna ungu muda dan border kuning tebal)
+                ax.fill(e_coords, n_coords, color='#D1C4E9', alpha=0.8, zorder=1)
+                ax.plot(e_coords, n_coords, color='#FFEB3B', linewidth=4, zorder=2)
+                
+                # 2. Plot Label Bearing & Jarak (Senget ikut garisan)
+                for i in range(len(df_mapped)):
+                    p1, p2 = coords_local[i], coords_local_closed[i+1]
+                    b, d, r = calculate_bearing_distance(p1, p2)
+                    mid_e, mid_n = (p1[0]+p2[0])/2, (p1[1]+p2[1])/2
+                    
+                    ax.text(mid_e, mid_n, f"{b}\n{d:.2f}m", 
+                            color='brown', fontsize=bearing_font_size+1, 
+                            fontweight='bold', ha='center', va='center', 
+                            rotation=r, rotation_mode='anchor', zorder=4)
+
+                # 3. Plot Label Stesen (Bulatan Putih, Border Merah)
+                for idx, row in df_mapped.iterrows():
+                    ax.text(row['E'], row['N'], str(int(row['STN'])), 
+                            color='black', fontweight='bold', ha='center', va='center',
+                            bbox=dict(boxstyle=f"circle,pad=0.3", fc="white", ec="red", lw=3),
+                            zorder=5)
+
+                # 4. Kotak Luas (Label Hijau di tengah)
+                center_e, center_n = sum(e_coords[:-1])/len(e_coords[:-1]), sum(n_coords[:-1])/len(n_coords[:-1])
+                ax.text(center_e, center_n + (max(n_coords)-min(n_coords))*0.2, f"{calculated_area:.2f} m²", 
+                        color='green', fontsize=area_font_size, fontweight='bold', ha='center',
+                        bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="green", lw=2),
+                        zorder=6)
+
+                # Kemasan Axis
+                ax.set_aspect('equal', adjustable='box')
+                ax.grid(True, linestyle='--', alpha=0.3, color='grey')
+                ax.set_facecolor('white')
+                # Hilangkan border kotak graf jika mahu lebih clean
+                for spine in ax.spines.values():
+                    spine.set_visible(True)
+                    spine.set_color('#CCCCCC')
+
+                st.pyplot(fig)
+
             st.dataframe(df_mapped[['STN', 'E', 'N', 'lat', 'lon']].style.format(precision=3), use_container_width=True)
             
         except Exception as e:
