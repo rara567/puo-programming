@@ -1,5 +1,5 @@
 import streamlit as st
-import pd
+import pandas as pd
 import folium
 from streamlit_folium import folium_static
 from pyproj import Transformer
@@ -15,6 +15,7 @@ from matplotlib.patches import Polygon as MatplotlibPolygon
 # ================== KONFIGURASI HALAMAN ==================
 st.set_page_config(page_title="Sistem Survey Lot - PUO", layout="wide", page_icon="📍")
 
+# Path Fail Lokal
 LOGO_PATH = "puo.png" 
 VIDEO_PATH = "video.mp4" 
 
@@ -110,8 +111,7 @@ else:
             coords_local = list(zip(df_mapped['E'], df_mapped['N']))
             coords_local.append(coords_local[0])
             poly_obj = Polygon(coords_local)
-            # LUAS DIKIRA SECARA DINAMIK
-            calculated_area = poly_obj.area 
+            calculated_area = poly_obj.area # Pengiraan luas automatik
 
             bearings, distances, mid_l, mid_w = [], [], [], []
             for i in range(len(df_mapped)):
@@ -119,38 +119,49 @@ else:
                 b, d = calculate_bearing_distance(p1, p2)
                 bearings.append(b); distances.append(d)
                 mid_l.append(((p1[0]+p2[0])/2, (p1[1]+p2[1])/2))
-                mid_w.append(((df_mapped.iloc[i]['lat']+(df_mapped.iloc[0]['lat'] if i==len(df_mapped)-1 else df_mapped.iloc[i+1]['lat']))/2, 
-                             (df_mapped.iloc[i]['lon']+(df_mapped.iloc[0]['lon'] if i==len(df_mapped)-1 else df_mapped.iloc[i+1]['lon']))/2))
+                
+                # Koordinat tengah WGS84 untuk Folium
+                p1_w, p2_w = (df_mapped.iloc[i]['lat'], df_mapped.iloc[i]['lon']), \
+                             (df_mapped.iloc[0]['lat'] if i==len(df_mapped)-1 else df_mapped.iloc[i+1]['lat'], \
+                              df_mapped.iloc[0]['lon'] if i==len(df_mapped)-1 else df_mapped.iloc[i+1]['lon'])
+                mid_w.append(((p1_w[0]+p2_w[0])/2, (p1_w[1]+p2_w[1])/2))
 
             if sat_toggle:
-                # MOD SATELIT
+                # ------------------ MOD 1: SATELIT ------------------
                 m = folium.Map(location=[df_mapped['lat'].mean(), df_mapped['lon'].mean()], zoom_start=20)
                 t_type = 'y' if map_selection == "Satalit (Hybrid)" else 'm'
                 folium.TileLayer(tiles=f'https://mt1.google.com/vt/lyrs={t_type}&x={{x}}&y={{y}}&z={{z}}', attr='Google', max_zoom=22).add_to(m)
-                folium.Polygon([[la, lo] for lo, la in list(zip(df_mapped['lon'], df_mapped['lat']))+[ (df_mapped['lon'][0], df_mapped['lat'][0]) ]], color="yellow", weight=3, fill=True, fill_opacity=0.3).add_to(m)
+                
+                folium.Polygon([[la, lo] for lo, la in list(zip(df_mapped['lon'], df_mapped['lat']))+[(df_mapped['lon'][0], df_mapped['lat'][0])]], 
+                               color="yellow", weight=3, fill=True, fill_opacity=0.3).add_to(m)
+                
                 if show_area_label:
-                    folium.Marker([df_mapped['lat'].mean(), df_mapped['lon'].mean()], icon=folium.DivIcon(html=f'<div style="color:#2ecc71; font-weight:bold; font-size:{area_font_size}pt; background:white; padding:2px 5px; border:1px solid #2ecc71; border-radius:3px; white-space:nowrap;">{calculated_area:.2f} m²</div>')).add_to(m)
+                    folium.Marker([df_mapped['lat'].mean(), df_mapped['lon'].mean()], 
+                                  icon=folium.DivIcon(html=f'<div style="color:#2ecc71; font-weight:bold; font-size:{area_font_size}pt; background:white; padding:2px 5px; border:1px solid #2ecc71; border-radius:3px; white-space:nowrap;">{calculated_area:.2f} m²</div>')).add_to(m)
+                
                 for i, mp in enumerate(mid_w):
                     folium.Marker(mp, icon=folium.DivIcon(html=f'<div style="color:yellow; font-size:{bearing_font_size}pt; font-weight:bold; text-shadow:1px 1px black; text-align:center; width:100px;">{bearings[i]}<br>{distances[i]:.2f}m</div>')).add_to(m)
+                
                 for _, r in df_mapped.iterrows():
                     folium.Marker([r['lat'], r['lon']], icon=folium.DivIcon(html=f'<div style="color:white; background:red; border-radius:50%; width:{station_circle_size}px; height:{station_circle_size}px; text-align:center; font-weight:bold; border:2px solid white; display:flex; align-items:center; justify-content:center;">{int(r["STN"])}</div>')).add_to(m)
                 folium_static(m, width=1100, height=550)
             
             else:
-                # MOD GRAF (BERSIH TANPA GARISAN PUTIH)
+                # ------------------ MOD 2: GRAF TEKNIKAL ------------------
+                st.markdown("### 📊 Plot Koordinat Tempatan")
                 fig, ax = plt.subplots(figsize=(10, 8))
-                ax.set_facecolor('white')
                 
-                # Sediakan Polygon & Plot
+                # Sediakan Poligon
                 pts = np.array(coords_local)
-                # Plot Poligon dahulu supaya berada di bawah (zorder=1)
-                ax.add_patch(MatplotlibPolygon(pts, facecolor='#D8BFD8', alpha=0.7, zorder=1))
-                ax.plot(pts[:,0], pts[:,1], color='yellow', linewidth=3, zorder=2)
-
-                # HILANGKAN SEMUA GRID DAN PAKSI (TOTAL CLEAN)
+                
+                # Pembersihan Garisan Putih Secara Total
+                ax.set_axis_off() 
                 ax.grid(False)
-                ax.set_xticks([]); ax.set_yticks([])
                 for spine in ax.spines.values(): spine.set_visible(False)
+                
+                # Lukis Poligon (zorder rendah di bawah)
+                ax.add_patch(MatplotlibPolygon(pts, facecolor='#D8BFD8', alpha=0.8, zorder=1))
+                ax.plot(pts[:,0], pts[:,1], color='yellow', linewidth=3, zorder=2)
 
                 # Label Bearing & Jarak (Merah)
                 for i, ml in enumerate(mid_l):
@@ -158,19 +169,19 @@ else:
                     rot = math.degrees(math.atan2(dy, dx))
                     if rot > 90 or rot < -90: rot += 180
                     ax.text(ml[0], ml[1], f"{bearings[i]}\n{distances[i]:.2f}m", 
-                            color='brown', fontsize=bearing_font_size+3, fontweight='bold', ha='center', va='center', rotation=rot, zorder=4)
+                            color='brown', fontsize=bearing_font_size+4, fontweight='bold', ha='center', va='center', rotation=rot, zorder=4)
 
-                # Label Luas Dinamik (Tengah Lot)
+                # Label Luas Dinamik
                 if show_area_label:
                     cx, cy = poly_obj.centroid.x, poly_obj.centroid.y
                     ax.text(cx, cy, f"{calculated_area:.2f} m²", color='green', fontsize=area_font_size+2, 
-                            fontweight='bold', ha='center', zorder=5, bbox=dict(facecolor='white', edgecolor='green', boxstyle='round,pad=0.3'))
+                            fontweight='bold', ha='center', zorder=5, 
+                            bbox=dict(facecolor='white', edgecolor='green', boxstyle='round,pad=0.3'))
                 
                 # Marker Stesen
-                for i, r in df_mapped.iterrows():
-                    ax.scatter(r['E'], r['N'], color='red', s=station_circle_size*6, zorder=6, edgecolors='white')
-                    ax.text(r['E'] + station_label_offset, r['N'] + station_label_offset, str(int(r['STN'])), 
-                            color='black', fontsize=11, fontweight='bold', zorder=7)
+                for _, r in df_mapped.iterrows():
+                    ax.scatter(r['E'], r['N'], color='red', s=station_circle_size*8, zorder=6, edgecolors='white', linewidth=1.5)
+                    ax.text(r['E'], r['N'], str(int(r['STN'])), color='white', ha='center', va='center', fontsize=9, fontweight='bold', zorder=7)
                 
                 ax.set_aspect('equal')
                 st.pyplot(fig)
