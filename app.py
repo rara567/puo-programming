@@ -16,12 +16,26 @@ st.set_page_config(page_title="Sistem Survey Lot - PUO", layout="wide", page_ico
 
 LOGO_PATH = "puo.png" 
 VIDEO_PATH = "video.mp4" 
-PROFILE_PIC_PATH = "me.jpg"  # Fail gambar anda
+
+def get_base64_profile():
+    # Cuba cari fail dengan pelbagai kemungkinan nama
+    possible_names = ["me", "me.jpeg", "me.jpg"]
+    for name in possible_names:
+        if os.path.exists(name):
+            try:
+                with open(name, "rb") as f:
+                    return base64.b64encode(f.read()).decode()
+            except:
+                continue
+    return None
 
 def get_base64_file(file_path):
     if os.path.exists(file_path):
-        with open(file_path, "rb") as f:
-            return base64.b64encode(f.read()).decode()
+        try:
+            with open(file_path, "rb") as f:
+                return base64.b64encode(f.read()).decode()
+        except:
+            return None
     return None
 
 def format_bearing(degrees):
@@ -37,16 +51,15 @@ def calculate_bearing_distance(p1, p2):
     angle_rad = math.atan2(de, dn)
     bearing_deg = math.degrees(angle_rad)
     if bearing_deg < 0: bearing_deg += 360
-    
     rotation = math.degrees(math.atan2(dn, de))
     if rotation > 90: rotation -= 180
     if rotation < -90: rotation += 180
-        
     return format_bearing(bearing_deg), distance, rotation
 
+# Load fail media
 img_base64 = get_base64_file(LOGO_PATH)
 vid_base64 = get_base64_file(VIDEO_PATH)
-profile_base64 = get_base64_file(PROFILE_PIC_PATH)
+profile_base64 = get_base64_profile()
 
 # ================== CUSTOM CSS ==================
 st.markdown(f"""
@@ -77,15 +90,15 @@ st.markdown(f"""
         content: "";
         position: absolute;
         top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0, 0, 0, 0.4);
+        background: rgba(0, 0, 0, 0.3);
         z-index: 1;
     }}
     .profile-content {{ position: relative; z-index: 2; }}
     .profile-pic {{
-        width: 90px;
-        height: 90px;
+        width: 100px;
+        height: 100px;
         border-radius: 50%;
-        border: 3px solid #00d2ff;
+        border: 3px solid white;
         object-fit: cover;
         margin-bottom: 10px;
         box-shadow: 0px 4px 15px rgba(0,0,0,0.5);
@@ -103,7 +116,7 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# ================== SISTEM LOG IN & LUPA KATA LALUAN ==================
+# ================== SISTEM LOG IN ==================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "reset_mode" not in st.session_state:
@@ -158,13 +171,16 @@ if not st.session_state.logged_in:
 else:
     # ================== SIDEBAR ==================
     with st.sidebar:
-        # Menggunakan fail me.jpg jika wujud, jika tidak guna placeholder
-        img_src = f"data:image/jpeg;base64,{profile_base64}" if profile_base64 else "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
+        # Menentukan sumber imej (me, me.jpeg atau me.jpg)
+        if profile_base64:
+            img_html = f'<img src="data:image/jpeg;base64,{profile_base64}" class="profile-pic">'
+        else:
+            img_html = '<img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" class="profile-pic">'
         
         st.markdown(f'''
             <div class="profile-card">
                 <div class="profile-content">
-                    <img src="{img_src}" class="profile-pic">
+                    {img_html}
                     <p class="profile-name">Hai, Malfoy!</p>
                     <p class="profile-rank">Student</p>
                 </div>
