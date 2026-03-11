@@ -10,12 +10,11 @@ import os
 import math
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.patches import Polygon as MatplotlibPolygon
 
 # ================== KONFIGURASI HALAMAN ==================
 st.set_page_config(page_title="Sistem Survey Lot - PUO", layout="wide", page_icon="📍")
 
-# Path Fail Lokal (Pastikan fail-fail ini ada di folder yang sama)
+# Path Fail Lokal
 LOGO_PATH = "puo.png" 
 VIDEO_PATH = "video.mp4" 
 
@@ -50,7 +49,7 @@ def calculate_bearing_distance(p1, p2):
         
     return format_bearing(bearing_deg), distance
 
-# Muat data base64 (untuk mengelakkan lag semasa rerun)
+# Muat turun data base64 (untuk mengelakkan lag semasa rerun)
 img_base64 = get_base64_file(LOGO_PATH)
 vid_base64 = get_base64_file(VIDEO_PATH)
 
@@ -164,7 +163,7 @@ else:
         
         epsg_code = st.text_input("🔵 Kod EPSG:", value="4390")
 
-        # Sidebar Gaya Label
+        # ================== NEW FEATURE: SIDEBAR GAYA LABEL ==================
         st.markdown("---")
         st.markdown('<div class="sidebar-header-custom">🖊️ Gaya Label</div>', unsafe_allow_html=True)
         
@@ -205,33 +204,25 @@ else:
             df.columns = [c.strip().upper() for c in df.columns]
             
             if all(x in df.columns for x in ['E', 'N', 'STN']):
-                # Transformasi Koordinat ke WGS84 untuk Peta
+                # 1. Transformasi Koordinat ke WGS84 untuk Peta
                 transformer = Transformer.from_crs(f"EPSG:{epsg_code}", "EPSG:4326", always_xy=True)
                 lon, lat = transformer.transform(df['E'].values, df['N'].values)
                 df_mapped = df.copy()
                 df_mapped['lat'] = lat
                 df_mapped['lon'] = lon
                 
-                # Geometri Local (Coords Asal CSV)
+                # Geometri & Data Eksport (Kekal 247m2)
                 coords_local = list(zip(df_mapped['E'], df_mapped['N']))
-                # Tambah koordinat pertama ke hujung senarai untuk menutup poligon
-                coords_local_closed = coords_local.copy()
-                if coords_local_closed[0] != coords_local_closed[-1]: 
-                    coords_local_closed.append(coords_local_closed[0])
+                if coords_local[0] != coords_local[-1]: coords_local.append(coords_local[0])
+                poly_local = Polygon(coords_local)
                 
-                poly_local = Polygon(coords_local_closed)
-                
-                # Geometri WGS (Lat/Lon)
                 coords_wgs = list(zip(df_mapped['lon'], df_mapped['lat']))
-                coords_wgs_closed = coords_wgs.copy()
-                if coords_wgs_closed[0] != coords_wgs_closed[-1]: 
-                    coords_wgs_closed.append(coords_wgs_closed[0])
-                
-                poly_wgs = Polygon(coords_wgs_closed)
+                if coords_wgs[0] != coords_wgs[-1]: coords_wgs.append(coords_wgs[0])
+                poly_wgs = Polygon(coords_wgs)
 
-                fixed_area = 247.00 # Luas override
+                fixed_area = 247.00
                 
-                # Eksport GeoJSON (Data asal)
+                # Eksport GeoJSON
                 with st.sidebar:
                     geojson_data = mapping(poly_wgs)
                     feature = {
@@ -250,25 +241,28 @@ else:
                         use_container_width=True
                     )
 
-                # Kira Bearing & Jarak (Menggunakan data Local)
+                # ================== KIRA BEARING & JARAK (LOCAL COORDINATES) ==================
                 bearings = []
                 distances = []
                 midpoints_local = []
                 midpoints_wgs = []
 
-                # Kira untuk setiap segmen (termasuk penutup)
                 for i in range(len(df_mapped)):
-                    p1_local = coords_local_closed[i]
-                    p2_local = coords_local_closed[i+1]
+                    p1_local = (df_mapped.iloc[i]['E'], df_mapped.iloc[i]['N'])
+                    p1_wgs = (df_mapped.iloc[i]['lon'], df_mapped.iloc[i]['lat'])
                     
-                    p1_wgs = coords_wgs_closed[i]
-                    p2_wgs = coords_wgs_closed[i+1]
+                    if i == len(df_mapped) - 1: # Tutup loop kembali ke titik pertama
+                        p2_local = (df_mapped.iloc[0]['E'], df_mapped.iloc[0]['N'])
+                        p2_wgs = (df_mapped.iloc[0]['lon'], df_mapped.iloc[0]['lat'])
+                    else:
+                        p2_local = (df_mapped.iloc[i+1]['E'], df_mapped.iloc[i+1]['N'])
+                        p2_wgs = (df_mapped.iloc[i+1]['lon'], df_mapped.iloc[i+1]['lat'])
                     
                     bearing_str, dist = calculate_bearing_distance(p1_local, p2_local)
                     bearings.append(bearing_str)
                     distances.append(dist)
                     
-                    # Titik Tengah untuk Label
+                    # Kira Titik Tengah untuk Label
                     mid_e = (p1_local[0] + p2_local[0]) / 2
                     mid_n = (p1_local[1] + p2_local[1]) / 2
                     midpoints_local.append((mid_e, mid_n))
@@ -285,7 +279,7 @@ else:
                     center_lon = df_mapped['lon'].mean()
                     m = folium.Map(location=[center_lat, center_lon], zoom_start=20, max_zoom=23)
 
-                    # Tile Google Maps
+                    # Tentukan Tile Google Maps
                     tile_type = 'y' if map_selection == "Satalit (Hybrid)" else 'm'
                     folium.TileLayer(
                         tiles=f'https://mt1.google.com/vt/lyrs={tile_type}&x={{x}}&y={{y}}&z={{z}}',
@@ -295,28 +289,26 @@ else:
                     
                     # Lukis Poligon
                     folium.Polygon(
-                        [[lat, lon] for lon, lat in coords_wgs_closed], 
+                        [[lat, lon] for lon, lat in coords_wgs], 
                         color="yellow", weight=3, fill=True, fill_opacity=0.2
                     ).add_to(m)
 
-                    # Papar Luas (Override 247m2)
+                    # Papar Luas (Overrides ke 247m2)
                     if show_area_label:
                         folium.Marker(
                             [center_lat, center_lon],
                             icon=folium.DivIcon(html=f'<div style="color: #2ecc71; font-weight: bold; font-size: {area_font_size}pt; text-shadow: 2px 2px black; background: white; padding: 2px 5px; border-radius: 5px; border: 1px solid #2ecc71;">{fixed_area:.2f} m²</div>')
                         ).add_to(m)
                     
-                    # Papar Bearing & Jarak (Kemas secara bertingkat)
+                    # Papar Bearing & Jarak
                     for i, midpoint in enumerate(midpoints_wgs):
-                        # Gantikan space dengan HTML <br> untuk paparan bertingkat
-                        display_bearing = bearings[i].replace('"', '"<br>')
-                        label_html = f'<div style="color: yellow; font-size: {bearing_font_size}pt; font-weight: bold; text-shadow: 1px 1px black; text-align: center; line-height: 1.1; width: max-content;">{display_bearing}{distances[i]:.2f}m</div>'
+                        label_html = f'<div style="color: yellow; font-size: {bearing_font_size}pt; font-weight: bold; text-shadow: 1px 1px black; text-align: center; line-height: 1.1; width: max-content;">{bearings[i]}<br>{distances[i]:.2f}m</div>'
                         folium.Marker(
                             midpoint,
                             icon=folium.DivIcon(html=label_html)
                         ).add_to(m)
 
-                    # Marker Stesen
+                    # Marker Stesen (Menggunakan slider sidebar)
                     for _, row in df_mapped.iterrows():
                         folium.Marker(
                             [row['lat'], row['lon']],
@@ -327,45 +319,42 @@ else:
 
                 else:
                     # ------------------ MOD 2: GRAF PLOT LOCAL (MATPLOTLIB) ------------------
+                    # Ini adalah feature baru untuk plot dalam graf plot seperti contoh anda
                     st.markdown("### 📊 Plot Koordinat Tempatan (Graf)")
                     
                     fig, ax = plt.subplots(figsize=(12, 8))
                     
-                    # 1. BUANG GARISAN PUTIH (AXIS SEMPADAN)
-                    ax.axis('off') # Ini akan membuang semua kotak axis, ticks, dan grids
-
-                    # 2. SEDIAKAN DATA PLOT (CLOSED LOOP)
-                    plot_data = np.array(coords_local_closed)
+                    # Data Plot (Ambil dari coords_local untuk elakkan 'tutupan' garisan)
+                    plot_data = np.array(coords_local)
                     e_coords = plot_data[:, 0]
                     n_coords = plot_data[:, 1]
                     
-                    # 3. LUKIS POLIGON (Kekal Style Kuning/Ungu)
+                    # Lukis Poligon & Sempadan (Kekal Style Kuning/Ungu)
                     ax.plot(e_coords, n_coords, color='yellow', linewidth=3, zorder=1)
-                    # Isi poligon (D8BFD8 = Light Purple)
-                    poly_patch = MatplotlibPolygon(plot_data, facecolor='#D8BFD8', edgecolor='none', alpha=0.5, zorder=0)
-                    ax.add_patch(poly_patch)
+                    ax.fill(e_coords, n_coords, color='#D8BFD8', alpha=0.5, zorder=0) # Light Purple
 
-                    # 4. PAPAR BEARING & JARAK (BERTINGKAT)
+                    # Label Bearing & Jarak di tengah-tengah garisan
                     for i, mid_p in enumerate(midpoints_local):
-                        p1 = coords_local_closed[i]
-                        p2 = coords_local_closed[i+1]
+                        # Ambil koordinat stesen untuk tentukan posisi label
+                        p1 = coords_local[i]
+                        p2 = coords_local[i+1]
                         
+                        # Pengiraan rotasi teks untuk ikut garisan (sedikit advanced)
                         dx = p2[0] - p1[0]
                         dy = p2[1] - p1[1]
                         angle_rad = math.atan2(dy, dx)
                         angle_deg = math.degrees(angle_rad)
                         
+                        # Elakkan teks terbalik (Advanced rotation)
                         rotation = angle_deg
                         if rotation > 90 or rotation < -90:
                             rotation += 180
 
-                        # Gantikan space dengan newline untuk paparan bertingkat dalam matplotlib
-                        display_bearing = bearings[i].replace('"', '"\n')
-                        ax.text(mid_p[0], mid_p[1], f"{display_bearing}{distances[i]:.2f}m",
+                        ax.text(mid_p[0], mid_p[1], f"{bearings[i]}\n{distances[i]:.2f}m",
                                 color='red', fontsize=bearing_font_size + 2, fontweight='bold', 
                                 ha='center', va='center', rotation=rotation, rotation_mode='anchor', zorder=3)
 
-                    # 5. PAPAR LUAS (Override 247m2)
+                    # Label Luas di tengah poligon (Kekal Style Hijau/Putih/Sempadan)
                     if show_area_label:
                         centroid = poly_local.centroid
                         ax.text(centroid.x, centroid.y, f"{fixed_area:.2f} m²",
@@ -373,34 +362,30 @@ else:
                                 ha='center', va='center', zorder=4,
                                 bbox=dict(facecolor='white', edgecolor='#2ecc71', boxstyle='round,pad=0.3'))
                     
-                    # 6. PLOT BULATAN STESEN (Gunakan Slider Sidebar)
+                    # Plot Bulatan Stesen & Label Nombor (Gunakan Slider Sidebar)
                     for i, row in df_mapped.iterrows():
+                        # Plot Bulatan Merah (menggunakan slider untuk saiz)
                         ax.scatter(row['E'], row['N'], color='red', edgecolor='white', s=station_circle_size*5, zorder=5)
                         
-                        # Label Nombor Stesen
+                        # Label Nombor Stesen (menggunakan slider untuk offset)
                         ax.annotate(str(int(row['STN'])), (row['E'], row['N']),
                                     xytext=(station_label_offset * 5, station_label_offset * 5),
                                     textcoords='offset points', color='black', fontsize=12,
                                     fontweight='bold', zorder=6)
 
-                    # 7. TETAPAN AKHIR GRAF
-                    # ax.set_aspect('equal') # Matikan aspect ratio agar plot lot membesar memenuhi canvas
-                    # Tetapkan had plot secara dinamik berdasarkan data lot sahaja
-                    margin_factor = 0.05
-                    min_e, max_e = np.min(e_coords), np.max(e_coords)
-                    min_n, max_n = np.min(n_coords), np.max(n_coords)
-                    e_margin = (max_e - min_e) * margin_factor
-                    n_margin = (max_n - min_n) * margin_factor
-                    ax.set_xlim(min_e - e_margin, max_e + e_margin)
-                    ax.set_ylim(min_n - n_margin, max_n + n_margin)
+                    # Tetapan Axis Graf (Matplotlib style)
+                    ax.set_xlabel('Easting (E)', fontsize=12)
+                    ax.set_ylabel('Northing (N)', fontsize=12)
+                    ax.grid(True, linestyle='--', alpha=0.5)
+                    ax.set_aspect('equal') # Pastikan skala E dan N sama
                     
                     st.pyplot(fig)
 
-                # Papar Jadual Data (Koordinat asal)
+                # Papar Jadual Data
                 st.dataframe(df_mapped[['STN', 'E', 'N', 'lat', 'lon']], use_container_width=True)
 
         except Exception as e:
             st.error(f"Ralat Proses Fail CSV: {e}")
             st.info("Sila pastikan fail CSV mempunyai kolum E, N, STN yang betul.")
     else:
-        st.info("Sila muat naik fail CSV di sidebar untuk melihat lot.")
+        st.info("Sila muat naik fail CSV di sidebar untuk melihat plot lot.")
