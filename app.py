@@ -114,14 +114,14 @@ if not st.session_state.logged_in:
             user_id = st.text_input("👤 Masukkan ID:", placeholder="Contoh: 67", key="login_id")
             password = st.text_input("🔑 Masukkan Kata Laluan:", type="password", key="login_pass")
             
-            if st.button("Log Masuk", use_container_width=True, type="primary"):
+            if st.button("Log Masuk", use_container_width=True, type="primary", key="btn_login"):
                 if user_id == "67" and password == st.session_state.stored_password:
                     st.session_state.logged_in = True
                     st.rerun()
                 else:
                     st.error("ID atau Kata Laluan Salah!")
             
-            if st.button("❓ Lupa Kata Laluan?"):
+            if st.button("❓ Lupa Kata Laluan?", key="btn_forgot"):
                 st.session_state.reset_mode = True
                 st.rerun()
         else:
@@ -131,20 +131,19 @@ if not st.session_state.logged_in:
             new_password = st.text_input("Masukkan Kata Laluan Baru:", type="password", key="new_pass")
             confirm_password = st.text_input("Sahkan Kata Laluan Baru:", type="password", key="confirm_pass")
             
-            if st.button("Simpan", use_container_width=True, type="primary"):
+            if st.button("Simpan", use_container_width=True, type="primary", key="btn_save_pw"):
                 if verify_id == "67" and secret_hint.lower() == "puo":
                     if new_password == confirm_password and len(new_password) > 0:
                         st.session_state.stored_password = new_password
                         st.success("Berjaya! Sila log masuk dengan kata laluan baru.")
                         st.session_state.reset_mode = False
-                        # Kecilkan sedikit kelewatan untuk pastikan state disimpan
                         st.rerun()
                     else:
                         st.error("Kata laluan tidak sepadan!")
                 else:
                     st.error("Maklumat pengesahan salah!")
             
-            if st.button("⬅️ Kembali ke Log Masuk"):
+            if st.button("⬅️ Kembali ke Log Masuk", key="btn_back"):
                 st.session_state.reset_mode = False
                 st.rerun()
                 
@@ -198,18 +197,35 @@ else:
             poly_obj = Polygon(coords_local)
             calculated_area = poly_obj.area 
 
-            # GeoJSON Export
+            # ================== EKSPORT GEOJSON (BAIK PULIH) ==================
             features = []
+            # 1. Eksport Poligon bersama Luas
             poly_gps_coords = [[lo, la] for lo, la in list(zip(df_mapped['lon'], df_mapped['lat']))]
             poly_gps_coords.append(poly_gps_coords[0])
-            features.append({"type": "Feature", "properties": {"name": "Lot", "area": round(calculated_area,2)}, "geometry": {"type": "Polygon", "coordinates": [poly_gps_coords]}})
+            features.append({
+                "type": "Feature", 
+                "properties": {"Name": "Lot Area", "Area_m2": round(calculated_area, 3)}, 
+                "geometry": {"type": "Polygon", "coordinates": [poly_gps_coords]}
+            })
+            # 2. Eksport Setiap Titik bersama Atribut Lengkap
             for _, r in df_mapped.iterrows():
-                features.append({"type": "Feature", "properties": {"stn": int(r["STN"])}, "geometry": {"type": "Point", "coordinates": [r["lon"], r["lat"]]}})
+                features.append({
+                    "type": "Feature", 
+                    "properties": {
+                        "STN": int(r["STN"]),
+                        "Easting": r["E"],
+                        "Northing": r["N"],
+                        "Lat": r["lat"],
+                        "Lon": r["lon"]
+                    }, 
+                    "geometry": {"type": "Point", "coordinates": [r["lon"], r["lat"]]}
+                })
             
             geojson_str = json.dumps({"type": "FeatureCollection", "features": features}, indent=2)
-            st.sidebar.download_button(label="📥 Eksport ke QGIS (GeoJSON)", data=geojson_str, file_name="lot.geojson", mime="application/json", use_container_width=True)
+            st.sidebar.download_button(label="📥 Eksport ke QGIS (GeoJSON Lengkap)", data=geojson_str, file_name="lot_data.geojson", mime="application/json", use_container_width=True)
 
             if sat_toggle:
+                # Peta Folium (Sama seperti asal)
                 m = folium.Map(location=[df_mapped['lat'].mean(), df_mapped['lon'].mean()], zoom_start=20)
                 t_type = 'y' if map_selection == "Satalit (Hybrid)" else 'm'
                 folium.TileLayer(tiles=f'https://mt1.google.com/vt/lyrs={t_type}&x={{x}}&y={{y}}&z={{z}}', attr='Google', max_zoom=22).add_to(m)
@@ -235,12 +251,12 @@ else:
                 folium_static(m, width=1100, height=550)
             
             else:
+                # Plot Teknikal (Matplotlib)
                 st.subheader("📊 Plotting Lot Teknikal")
                 fig, ax = plt.subplots(figsize=(12, 9))
                 e_coords = [p[0] for p in coords_local_closed]
                 n_coords = [p[1] for p in coords_local_closed]
                 
-                # SKALA TERATUR (Sesuai dengan permintaan sebelum ini)
                 ax.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
                 ax.yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
                 ax.ticklabel_format(style='plain', axis='both')
@@ -268,6 +284,7 @@ else:
                 ax.set_xlabel("Easting (m)", fontweight='bold')
                 ax.set_ylabel("Northing (m)", fontweight='bold')
                 st.pyplot(fig)
+                plt.close(fig) # Mengelakkan pembaziran memori
 
             st.dataframe(df_mapped[['STN', 'E', 'N', 'lat', 'lon']].style.format(precision=3), use_container_width=True)
             
