@@ -111,30 +111,43 @@ if not st.session_state.logged_in:
         st.title("Survey Lot Rumah")
         
         if not st.session_state.reset_mode:
-            user_id = st.text_input("👤 Masukkan ID:", placeholder="Contoh: 67")
-            password = st.text_input("🔑 Masukkan Kata Laluan:", type="password")
+            user_id = st.text_input("👤 Masukkan ID:", placeholder="Contoh: 67", key="login_id")
+            password = st.text_input("🔑 Masukkan Kata Laluan:", type="password", key="login_pass")
+            
             if st.button("Log Masuk", use_container_width=True, type="primary"):
                 if user_id == "67" and password == st.session_state.stored_password:
                     st.session_state.logged_in = True
                     st.rerun()
                 else:
                     st.error("ID atau Kata Laluan Salah!")
+            
             if st.button("❓ Lupa Kata Laluan?"):
                 st.session_state.reset_mode = True
                 st.rerun()
         else:
             st.subheader("Set Semula Kata Laluan")
-            verify_id = st.text_input("Sila masukkan ID anda:")
-            secret_hint = st.text_input("Siapakah nama pensyarah kegemaran anda? (Hint: Jawapan adalah 'PUO')", type="password")
-            new_password = st.text_input("Masukkan Kata Laluan Baru:", type="password")
-            confirm_password = st.text_input("Sahkan Kata Laluan Baru:", type="password")
+            verify_id = st.text_input("Sila masukkan ID anda:", key="reset_id")
+            secret_hint = st.text_input("Siapakah nama pensyarah kegemaran anda? (Hint: Jawapan adalah 'PUO')", type="password", key="reset_hint")
+            new_password = st.text_input("Masukkan Kata Laluan Baru:", type="password", key="new_pass")
+            confirm_password = st.text_input("Sahkan Kata Laluan Baru:", type="password", key="confirm_pass")
+            
             if st.button("Simpan", use_container_width=True, type="primary"):
                 if verify_id == "67" and secret_hint.lower() == "puo":
                     if new_password == confirm_password and len(new_password) > 0:
                         st.session_state.stored_password = new_password
-                        st.success("Berjaya!")
+                        st.success("Berjaya! Sila log masuk dengan kata laluan baru.")
                         st.session_state.reset_mode = False
+                        # Kecilkan sedikit kelewatan untuk pastikan state disimpan
                         st.rerun()
+                    else:
+                        st.error("Kata laluan tidak sepadan!")
+                else:
+                    st.error("Maklumat pengesahan salah!")
+            
+            if st.button("⬅️ Kembali ke Log Masuk"):
+                st.session_state.reset_mode = False
+                st.rerun()
+                
         st.markdown('</div>', unsafe_allow_html=True)
 
 else:
@@ -197,7 +210,6 @@ else:
             st.sidebar.download_button(label="📥 Eksport ke QGIS (GeoJSON)", data=geojson_str, file_name="lot.geojson", mime="application/json", use_container_width=True)
 
             if sat_toggle:
-                # Paparan Peta Folium
                 m = folium.Map(location=[df_mapped['lat'].mean(), df_mapped['lon'].mean()], zoom_start=20)
                 t_type = 'y' if map_selection == "Satalit (Hybrid)" else 'm'
                 folium.TileLayer(tiles=f'https://mt1.google.com/vt/lyrs={t_type}&x={{x}}&y={{y}}&z={{z}}', attr='Google', max_zoom=22).add_to(m)
@@ -223,58 +235,38 @@ else:
                 folium_static(m, width=1100, height=550)
             
             else:
-                # ================== GRAF TEKNIKAL ==================
                 st.subheader("📊 Plotting Lot Teknikal")
                 fig, ax = plt.subplots(figsize=(12, 9))
-                
                 e_coords = [p[0] for p in coords_local_closed]
                 n_coords = [p[1] for p in coords_local_closed]
                 
-                # PEMBETULAN SKALA: Mengelakkan notasi saintifik & Menghadkan bilangan label (Teratur & Kemas)
+                # SKALA TERATUR (Sesuai dengan permintaan sebelum ini)
                 ax.xaxis.set_major_formatter(ScalarFormatter(useOffset=False))
                 ax.yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
                 ax.ticklabel_format(style='plain', axis='both')
-                
-                # Menetapkan jumlah maksimum label pada paksi (e.g., 5-6 label sahaja)
                 ax.xaxis.set_major_locator(MaxNLocator(nbins=6))
                 ax.yaxis.set_major_locator(MaxNLocator(nbins=6))
 
-                # 1. Plot Poligon
                 ax.fill(e_coords, n_coords, color='#D1C4E9', alpha=0.8, zorder=1)
                 ax.plot(e_coords, n_coords, color='#FFEB3B', linewidth=4, zorder=2)
                 
-                # 2. Plot Label Bearing & Jarak
                 for i in range(len(df_mapped)):
                     p1, p2 = coords_local[i], coords_local_closed[i+1]
                     b, d, r = calculate_bearing_distance(p1, p2)
                     mid_e, mid_n = (p1[0]+p2[0])/2, (p1[1]+p2[1])/2
-                    
-                    ax.text(mid_e, mid_n, f"{b}\n{d:.2f}m", 
-                            color='brown', fontsize=bearing_font_size+1, 
-                            fontweight='bold', ha='center', va='center', 
-                            rotation=r, rotation_mode='anchor', zorder=4)
+                    ax.text(mid_e, mid_n, f"{b}\n{d:.2f}m", color='brown', fontsize=bearing_font_size+1, fontweight='bold', ha='center', va='center', rotation=r, rotation_mode='anchor', zorder=4)
 
-                # 3. Plot Label Stesen
                 for idx, row in df_mapped.iterrows():
-                    ax.text(row['E'], row['N'], str(int(row['STN'])), 
-                            color='black', fontweight='bold', ha='center', va='center',
-                            bbox=dict(boxstyle=f"circle,pad=0.3", fc="white", ec="red", lw=3),
-                            zorder=5)
+                    ax.text(row['E'], row['N'], str(int(row['STN'])), color='black', fontweight='bold', ha='center', va='center', bbox=dict(boxstyle=f"circle,pad=0.3", fc="white", ec="red", lw=3), zorder=5)
 
-                # 4. Kotak Luas
                 center_e, center_n = sum(e_coords[:-1])/len(e_coords[:-1]), sum(n_coords[:-1])/len(n_coords[:-1])
-                ax.text(center_e, center_n + (max(n_coords)-min(n_coords))*0.15, f"{calculated_area:.2f} m²", 
-                        color='green', fontsize=area_font_size, fontweight='bold', ha='center',
-                        bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="green", lw=2),
-                        zorder=6)
+                ax.text(center_e, center_n + (max(n_coords)-min(n_coords))*0.15, f"{calculated_area:.2f} m²", color='green', fontsize=area_font_size, fontweight='bold', ha='center', bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="green", lw=2), zorder=6)
 
-                # Kemasan Axis
                 ax.set_aspect('equal', adjustable='box')
                 ax.grid(True, linestyle='--', alpha=0.3, color='grey')
                 ax.set_facecolor('white')
                 ax.set_xlabel("Easting (m)", fontweight='bold')
                 ax.set_ylabel("Northing (m)", fontweight='bold')
-
                 st.pyplot(fig)
 
             st.dataframe(df_mapped[['STN', 'E', 'N', 'lat', 'lon']].style.format(precision=3), use_container_width=True)
